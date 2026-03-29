@@ -9,6 +9,7 @@ const (
 	// Identifiers
 	IDENT
 	INT_LITERAL
+	STRING_LITERAL
 
 	// Operators
 	ASSIGN  // = for assigning a value
@@ -21,6 +22,10 @@ const (
 	FORWARD_SLASH
 	EQUALS
 	NOT_EQUALS
+	GREATER_THAN
+	LESS_THAN
+	GREATER_THAN_OR_EQUALS
+	LESS_THAN_OR_EQUALS
 
 	// Delimeters
 	COMMA
@@ -40,7 +45,7 @@ const (
 	IF
 	ELSE
 	RETURN
-	EXP
+	PUB
 	MUT
 )
 
@@ -48,19 +53,24 @@ var tokenNames = [...]string{
 	ILLEGAL: "ILLEGAL",
 	EOF:     "EOF",
 	// identifiers
-	IDENT:       "IDENT",
-	INT_LITERAL: "INT_LITERAL",
+	IDENT:          "IDENT",
+	INT_LITERAL:    "INT_LITERAL",
+	STRING_LITERAL: "STRING_LITERAL",
 	// Operators
-	ASSIGN:        "ASSIGN", // =
-	DECLARE:       "DECLARE", // :=
-	COLON:         "COLON", // :
-	PLUS:          "PLUS",
-	MINUS:         "MINUS",
-	BANG:          "BANG",
-	ASTERIK:       "ASTERIK",
-	FORWARD_SLASH: "FORWARD_SLASH",
-	EQUALS:        "EQUALS",
-	NOT_EQUALS:    "NOT_EQUALS",
+	ASSIGN:                 "ASSIGN",  // =
+	DECLARE:                "DECLARE", // :=
+	COLON:                  "COLON",   // :
+	PLUS:                   "PLUS",
+	MINUS:                  "MINUS",
+	BANG:                   "BANG",
+	ASTERIK:                "ASTERIK",
+	FORWARD_SLASH:          "FORWARD_SLASH",
+	EQUALS:                 "EQUALS",
+	NOT_EQUALS:             "NOT_EQUALS",
+	GREATER_THAN:           "GREATER_THAN",
+	LESS_THAN:              "LESS_THAN",
+	GREATER_THAN_OR_EQUALS: "GREATER_THAN_OR_EQUALS",
+	LESS_THAN_OR_EQUALS:    "LESS_THAN_OR_EQUALS",
 	// Delimeters
 	COMMA:     "COMMA",
 	SEMICOLON: "SEMICOLON",
@@ -86,9 +96,8 @@ var keywords = map[string]TokenType{
 	"if":     IF,
 	"else":   ELSE,
 	"return": RETURN,
-	"exp":    EXP,
+	"pub":    PUB,
 	"mut":    MUT,
-	"int":    INT_LITERAL,
 }
 
 type Token struct {
@@ -96,8 +105,8 @@ type Token struct {
 	Literal string
 }
 
-func (t *Token) ToString() string {
-	return tokenNames[t.Type]
+func GetTokenName(tokenType int) string {
+	return tokenNames[tokenType]
 }
 
 func LookupIdent(ident string) TokenType {

@@ -20,7 +20,7 @@ func checkTokens(t *testing.T, input string, expected Tests) {
 		tok := l.NextToken()
 
 		if tok.Type != tt.expectedType {
-			t.Fatalf("tests[%d] - tokentype wrong, expected=%q got=%q", i, tt.expectedType, tok.ToString())
+			t.Fatalf("tests[%d] - tokentype wrong, expected=%q got=%q", i, token.GetTokenName(int(tt.expectedType)), token.GetTokenName(int(tok.Type)))
 		}
 
 		if tok.Literal != tt.expectedLiteral {
@@ -60,15 +60,15 @@ func TestDeclareToken(t *testing.T) {
 }
 
 func TestDeclareWithOptions(t *testing.T) {
-	input := `<mut, exp, int> five := 5;`
+	input := `<mut, pub, int> five := 5;`
 
 	tests := Tests{
 		{token.LTAG, "<"},
 		{token.MUT, "mut"},
 		{token.COMMA, ","},
-		{token.EXP, "exp"},
+		{token.PUB, "pub"},
 		{token.COMMA, ","},
-		{token.INT_LITERAL, "int"},
+		{token.IDENT, "int"},
 		{token.RTAG, ">"},
 		{token.IDENT, "five"},
 		{token.DECLARE, ":="},
@@ -123,16 +123,102 @@ func TestFunctionDeclare(t *testing.T) {
 		{token.IDENT, "add"},
 		{token.LPAREN, "("},
 		{token.IDENT, "x"},
-		{token.INT_LITERAL, "int"},
+		{token.IDENT, "int"},
 		{token.COMMA, ","},
 		{token.IDENT, "y"},
-		{token.INT_LITERAL, "int"},
+		{token.IDENT, "int"},
 		{token.RPAREN, ")"},
 		{token.LBRACE, "{"},
 		{token.RETURN, "return"},
-		{token.IDENT, "x"}, 
+		{token.IDENT, "x"},
 		{token.PLUS, "+"},
 		{token.IDENT, "y"},
+		{token.SEMICOLON, ";"},
+		{token.RBRACE, "}"},
+	}
+
+	checkTokens(t, input, tests)
+}
+
+func TestBooleanTokens(t *testing.T) {
+	input := `isThis := true;
+isThat := false;`
+
+	tests := Tests{
+		{token.IDENT, "isThis"},
+		{token.DECLARE, ":="},
+		{token.TRUE, "true"},
+		{token.SEMICOLON, ";"},
+		{token.IDENT, "isThat"},
+		{token.DECLARE, ":="},
+		{token.FALSE, "false"},
+		{token.SEMICOLON, ";"},
+	}
+
+	checkTokens(t, input, tests)
+}
+
+func TestComparisonOperators(t *testing.T) {
+	input := `x == y;
+x != y;
+x > y;
+x < y;
+x >= y;
+x <= y;`
+
+	tests := Tests{
+		{token.IDENT, "x"},
+		{token.EQUALS, "=="},
+		{token.IDENT, "y"},
+		{token.SEMICOLON, ";"},
+		{token.IDENT, "x"},
+		{token.NOT_EQUALS, "!="},
+		{token.IDENT, "y"},
+		{token.SEMICOLON, ";"},
+		{token.IDENT, "x"},
+		{token.RTAG, ">"},
+		{token.IDENT, "y"},
+		{token.SEMICOLON, ";"},
+		{token.IDENT, "x"},
+		{token.LTAG, "<"},
+		{token.IDENT, "y"},
+		{token.SEMICOLON, ";"},
+		{token.IDENT, "x"},
+		{token.GREATER_THAN_OR_EQUALS, ">="},
+		{token.IDENT, "y"},
+		{token.SEMICOLON, ";"},
+		{token.IDENT, "x"},
+		{token.LESS_THAN_OR_EQUALS, "<="},
+		{token.IDENT, "y"},
+		{token.SEMICOLON, ";"},
+	}
+
+	checkTokens(t, input, tests)
+}
+
+func TestBranchingToken(t *testing.T) {
+	input := `if (x < y) {
+	return true;	
+} else {
+	return false;
+}`
+
+	tests := Tests{
+		{token.IF, "if"},
+		{token.LPAREN, "("},
+		{token.IDENT, "x"},
+		{token.LTAG, "<"},
+		{token.IDENT, "y"},
+		{token.RPAREN, ")"},
+		{token.LBRACE, "{"},
+		{token.RETURN, "return"},
+		{token.TRUE, "true"},
+		{token.SEMICOLON, ";"},
+		{token.RBRACE, "}"},
+		{token.ELSE, "else"},
+		{token.LBRACE, "{"},
+		{token.RETURN, "return"},
+		{token.FALSE, "false"},
 		{token.SEMICOLON, ";"},
 		{token.RBRACE, "}"},
 	}
