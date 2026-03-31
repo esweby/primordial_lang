@@ -79,7 +79,6 @@ All variables can be assigned options using < > syntax. The following three prop
 - mut - is a mutable variable
 - pub - is publicly available and able to be imported from other packages
 - type - the type of the variable from any of the above types
-- generic -
 
 ```
 <mut> age := 17
@@ -99,3 +98,24 @@ Mutable variables that are made publicly available are treated as read only when
 
 name = "Cats" // Will throw an error
 ```
+
+The following rules are in effect for the options of the langiage.
+
+- If <...> contains no type name, the variable/s type is inferred from the value
+- If <...> contains exactly one type name, that type is used. If the type is incompatible with the value, a compile-time error is raised
+- If <...> contains multiple type names, it's an error
+- If mut is absent, the variable is immutable
+- If pub is absent, the variable is private
+
+## Reserved Keywords
+
+Here is a list of reserved keywords within Primordial lang.
+
+- fn
+- true
+- false
+- if
+- else
+- return
+- pub
+- mut
