@@ -24,9 +24,7 @@ pub const dogs := "cats"`
 		t.Fatalf("ParseProgram() returned nil")
 	}
 
-	if len(program.Statements) != 5 {
-		t.Fatalf("program.Statements does not contain 5 statements. got=%d", len(program.Statements))
-	}
+	checkNumExpectedStatements(t, program.Statements, 5)
 
 	tests := []struct {
 		expectedIdentifier string
@@ -72,6 +70,32 @@ func testDeclareStatement(t *testing.T, stmt ast.Statement, name string) bool {
 	return true
 }
 
+func TestReturnStatement(t *testing.T) {
+	input := `return 5;
+return 10;
+return 99332211;`
+
+	l := lexer.New(input)
+	p := New(l)
+
+	program := p.ParseProgram()
+	checkParserErrors(t, p)
+
+	checkNumExpectedStatements(t, program.Statements, 3)
+
+	for _, stmt := range program.Statements {
+		returnStatement, ok := stmt.(*ast.ReturnStatement)
+		if !ok {
+			t.Errorf("stmt not *ast.ReturnStatement got=%T", stmt)
+			continue
+		}
+
+		if returnStatement.TokenLiteral() != "return" {
+			t.Errorf("returnStatement.tokenLiteral not return. Got=%s", returnStatement.TokenLiteral())
+		}
+	}
+}
+
 func checkParserErrors(t *testing.T, p *Parser) {
 	errors := p.Errors()
 
@@ -85,4 +109,11 @@ func checkParserErrors(t *testing.T, p *Parser) {
 	}
 
 	t.FailNow()
+}
+
+func checkNumExpectedStatements(t *testing.T, stmts []ast.Statement, numExpected int) {
+	if len(stmts) != numExpected {
+		t.Errorf("statements does not contain %d statements. got=%d", numExpected, len(stmts))
+		t.FailNow()
+	}
 }

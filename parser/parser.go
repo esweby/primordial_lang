@@ -73,6 +73,8 @@ func (p *Parser) parseStatement() ast.Statement {
 		if p.peekTokenIs(token.COLON) || p.peekTokenIs(token.DECLARE) {
 			return p.parseDeclareStatement()
 		}
+	case token.RETURN:
+		return p.parseReturnStatement()
 	}
 
 	return nil
@@ -132,6 +134,19 @@ func (p *Parser) parseDeclareStatement() *ast.DeclareStatement {
 	// TODO: Insert expression evaluation
 
 	if p.peekTokenIs(token.SEMICOLON) {
+		p.nextToken()
+	}
+
+	return stmt
+}
+
+// RETURN STATEMENTS
+
+func (p *Parser) parseReturnStatement() *ast.ReturnStatement {
+	stmt := &ast.ReturnStatement{Token: p.curToken}
+	p.nextToken()
+
+	for !p.curTokenIs(token.SEMICOLON) {
 		p.nextToken()
 	}
 
