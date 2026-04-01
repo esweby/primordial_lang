@@ -9,20 +9,23 @@ import (
 
 func TestDeclareStatements(t *testing.T) {
 	input := `x := 5;
-y := 10
-foobar := 548632`
+y := 10;
+pub foobar := 548632;
+mut cats := "dogs";
+pub const dogs := "cats"`
 
 	l := lexer.New(input) 
 	p := New(l)
 
 	program := p.ParseProgram()
+	checkParserErrors(t, p)
 
 	if program == nil {
 		t.Fatalf("ParseProgram() returned nil")
 	}
 
-	if len(program.Statements) != 3 {
-		t.Fatalf("program.Statements does not contain 3 statements. got=%d", len(program.Statements))
+	if len(program.Statements) != 5 {
+		t.Fatalf("program.Statements does not contain 5 statements. got=%d", len(program.Statements))
 	}
 
 	tests := []struct {
@@ -31,6 +34,8 @@ foobar := 548632`
 		{"x"},
 		{"y"},
 		{"foobar"},
+		{"cats"},
+		{"dogs"},
 	}
 
 	for i, tt := range tests {
@@ -65,4 +70,19 @@ func testDeclareStatement(t *testing.T, stmt ast.Statement, name string) bool {
 	}
 
 	return true
+}
+
+func checkParserErrors(t *testing.T, p *Parser) {
+	errors := p.Errors()
+
+	if len(errors) == 0 {
+		return
+	}
+
+	t.Errorf("parser has %d errors", len(errors))
+	for _, msg := range errors {
+		t.Errorf("parser error: %s", msg)
+	}
+
+	t.FailNow()
 }

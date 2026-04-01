@@ -47,6 +47,7 @@ const (
 	RETURN
 	PUB
 	MUT
+	CONST
 )
 
 var tokenNames = [...]string{
@@ -87,6 +88,9 @@ var tokenNames = [...]string{
 	IF:     "IF",
 	ELSE:   "ELSE",
 	RETURN: "RETURN",
+	PUB:    "PUB",
+	MUT:    "MUT",
+	CONST:  "CONST",
 }
 
 var keywords = map[string]TokenType{
@@ -98,6 +102,7 @@ var keywords = map[string]TokenType{
 	"return": RETURN,
 	"pub":    PUB,
 	"mut":    MUT,
+	"const":  CONST,
 }
 
 type Token struct {

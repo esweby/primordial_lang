@@ -66,46 +66,43 @@ A variable is declared using the := assignment syntax and has the following rule
 identifier := value
 ```
 
+The following three options are available to a variable
+
+- pub - the variable will be publicly available
+- const - the value of the variable will be known at compile time
+- mut - the variable is mutable
+
+The following declaration rules will apply to these options
+
+- All options may be ommitted
+- If included, pub must be the first option
+- The next option must be either mut or const, never both
+
+```
+mut age := 17
+age = age + 1
+
+pub age := 18
+
+pub const COMPILE_TIME_KNOWN := "Cats are cool"
+```
+
+The following rules will apply to variables being used
+
+- A mutable variable will only be mutable within its original package
+
 Variables will infer a type, where possible and most basic types available in Go will be initially available in Primordial.
 
-- string
 - int int8 int16 int32 int64
 - uint uint8 uint16 uint32 uint64
 - float32 float64
 - boolean
 
-All variables can be assigned options using < > syntax. The following three properties may be assigned, in any order, or any quantity. Each option will be separated by a comma. A mutable variable may be made publicly available, but may not be mutated outside of it's origin package.
-
-- mut - is a mutable variable
-- pub - is publicly available and able to be imported from other packages
-- type - the type of the variable from any of the above types
+Should you want to use a specific type you may include the type between the identifier and the declaration using :
 
 ```
-<mut> age := 17
-age = age + 1
-
-<mut, int32, pub> age := 32 // #import project.package.age
+universeAge: int64 := 3,000,000,000
 ```
-
-Mutable variables that are made publicly available are treated as read only when imported.
-
-```
-- project/user
-<mut, pub> name := "Tobias"
-
-- project/processing
-#import project.user.name
-
-name = "Cats" // Will throw an error
-```
-
-The following rules are in effect for the options of the langiage.
-
-- If <...> contains no type name, the variable/s type is inferred from the value
-- If <...> contains exactly one type name, that type is used. If the type is incompatible with the value, a compile-time error is raised
-- If <...> contains multiple type names, it's an error
-- If mut is absent, the variable is immutable
-- If pub is absent, the variable is private
 
 ## Reserved Keywords
 
@@ -118,4 +115,5 @@ Here is a list of reserved keywords within Primordial lang.
 - else
 - return
 - pub
+- const
 - mut
