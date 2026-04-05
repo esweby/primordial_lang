@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/esweby/primordial_lang/ast"
@@ -157,6 +158,45 @@ func TestIntegerLiteralExpressions(t *testing.T) {
 	}
 }
 
+func TestParsingPrefixExpressions(t *testing.T) {
+	prefixTests := []struct{
+		input string
+		operator string
+		integerValue int64
+	}{
+		{"!5;", "!", 5},
+		{"-15", "-", 15},
+	}
+
+	for _, tt := range prefixTests {
+		l := lexer.New(tt.input)
+		p := New(l)
+		program := p.ParseProgram()
+		checkParserErrors(t, p)
+		checkNumExpectedStatements(t, program.Statements, 1)
+
+		stmt, ok := program.Statements[0].(*ast.ExpressionStatement)
+		if !ok {
+			t.Fatalf("program.Statements[0] not *ast.ExpressionStatement. Got=%T",
+				program.Statements[0],
+			)
+		}
+
+		exp, ok := stmt.Expression.(*ast.PrefixExpression)
+		if !ok {
+			t.Fatalf("stmt.Expression not ast.PrefixExpression. Got=%T", stmt.Expression)
+		}
+
+		if exp.Operator != tt.operator {
+			t.Fatalf("exp.Operator not %s. Got=%s", tt.operator, exp.Operator)
+		}
+
+		if !testIntegerLiteral(t, exp.Right, tt.integerValue) {
+			return
+		}
+	}
+}
+
 func checkParserErrors(t *testing.T, p *Parser) {
 	errors := p.Errors()
 
@@ -180,4 +220,24 @@ func checkNumExpectedStatements(t *testing.T, stmts []ast.Statement, numExpected
 		}
 		t.FailNow()
 	}
+}
+
+func testIntegerLiteral(t *testing.T, il ast.Expression, value int64) bool {
+	inte, ok := il.(*ast.IntegerLiteral)
+	if !ok {
+		t.Errorf("il not ast.IntegerLiteral. Got=%T", inte)
+		return false
+	}
+
+	if inte.Value != value {
+		t.Errorf("inte.Value not %d. Got=%d", value, inte.Value)
+		return false
+	}
+
+	if inte.TokenLiteral() != fmt.Sprintf("%d", value) {
+		t.Errorf("inte.TokenLiteral not %d. Got=%s", value, inte.TokenLiteral())
+		return false
+	}
+
+	return true
 }
