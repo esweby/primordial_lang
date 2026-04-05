@@ -104,6 +104,10 @@ Should you want to use a specific type you may include the type between the iden
 universeAge: int64 := 3,000,000,000
 ```
 
+## Expression Parsing
+
+This language will be implementing Pratt Parsing.
+
 ## Reserved Keywords
 
 Here is a list of reserved keywords within Primordial lang.

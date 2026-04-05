@@ -11,6 +11,16 @@ const (
 	INT_LITERAL
 	STRING_LITERAL
 
+	// Types
+	INT8
+	UINT8
+	INT32
+	UINT32
+	INT64
+	UINT64
+	FLOAT32
+	FLOAT64
+
 	// Operators
 	ASSIGN  // = for assigning a value
 	DECLARE // := for assigning variables

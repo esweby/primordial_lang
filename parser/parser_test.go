@@ -10,9 +10,9 @@ import (
 func TestDeclareStatements(t *testing.T) {
 	input := `x := 5;
 y := 10;
-pub foobar := 548632;
-mut cats := "dogs";
-pub const dogs := "cats"`
+pub foobar := "548632";
+mut cats := 12;
+pub const dogs := "Dogs";`
 
 	l := lexer.New(input) 
 	p := New(l)
@@ -96,6 +96,67 @@ return 99332211;`
 	}
 }
 
+func TestIdentifierExpression(t *testing.T) {
+	testWord := "foobar"
+	input := "foobar"
+
+	l := lexer.New(input)
+	p := New(l)
+
+	program := p.ParseProgram()
+
+	checkParserErrors(t, p)
+	checkNumExpectedStatements(t, program.Statements, 1)
+
+	stmt, ok := program.Statements[0].(*ast.ExpressionStatement)
+	if !ok {
+		t.Fatalf("program.Statements[0] is not an ast.ExpressionStatement. Got=%T", program.Statements[0])
+	}
+
+	ident, ok := stmt.Expression.(*ast.Identifier)
+	if !ok {
+		t.Fatalf("exp not *ast.Identifier. got=%T", stmt.Expression)
+	}
+
+	if ident.Value != testWord {
+		t.Errorf("ident.Value not %s. Got=%s", testWord, ident.Value)
+	}
+
+	if ident.TokenLiteral() != testWord {
+		t.Errorf("ident.TokenLiteral() is not %s. Got=%s", testWord, ident.TokenLiteral())
+	}
+}
+
+func TestIntegerLiteralExpressions(t *testing.T) {
+	input := `5;`
+
+	l := lexer.New(input)
+	p := New(l)
+
+	program := p.ParseProgram()
+
+	checkParserErrors(t, p)
+	checkNumExpectedStatements(t, program.Statements, 1)
+
+	stmt, ok := program.Statements[0].(*ast.ExpressionStatement)
+	if !ok {
+		t.Fatalf("program.Statements[0] is not an ast.ExpressionStatement. Got=%T", program.Statements[0])
+	}
+
+	literal, ok := stmt.Expression.(*ast.IntegerLiteral)
+	if !ok {
+		t.Fatalf("exp not *ast.Identifier. got=%T", stmt.Expression)
+	}
+
+	if literal.Value != 5 {
+		t.Errorf("literal.Value not %d. Got=%d", 5, literal.Value)
+	}
+
+	if literal.TokenLiteral() != "5" {
+		t.Errorf("literal.TokenLiteral() is not %d. Got=%s", 5, literal.TokenLiteral())
+	}
+}
+
 func checkParserErrors(t *testing.T, p *Parser) {
 	errors := p.Errors()
 
@@ -114,6 +175,9 @@ func checkParserErrors(t *testing.T, p *Parser) {
 func checkNumExpectedStatements(t *testing.T, stmts []ast.Statement, numExpected int) {
 	if len(stmts) != numExpected {
 		t.Errorf("statements does not contain %d statements. got=%d", numExpected, len(stmts))
+		for _, stmt := range stmts {
+			t.Errorf("%t", stmt)
+		}
 		t.FailNow()
 	}
 }
