@@ -25,6 +25,17 @@ const (
 	CALL
 )
 
+var precedences = map[token.TokenType]int {
+	token.EQUALS: EQUALS,
+	token.NOT_EQUALS: EQUALS,
+	token.LTAG: LESSGREATER,
+	token.RTAG: LESSGREATER,
+	token.PLUS: SUM,
+	token.MINUS: SUM,
+	token.FORWARD_SLASH: PRODUCT,
+	token.ASTERIK: PRODUCT,
+}
+
 var systemTypes = map[string]bool{
 	"boolean": true,
 	"string": true,
@@ -65,7 +76,15 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerPrefix(token.BANG, p.parsePrefixExpression)
 	p.registerPrefix(token.MINUS, p.parsePrefixExpression)
 
-	
+	p.infixParseFns = make(map[token.TokenType]infixParseFn)
+	p.registerInfix(token.PLUS, p.parseInfixExpression)
+	p.registerInfix(token.MINUS, p.parseInfixExpression)
+	p.registerInfix(token.FORWARD_SLASH, p.parseInfixExpression)
+	p.registerInfix(token.ASTERIK, p.parseInfixExpression)
+	p.registerInfix(token.EQUALS, p.parseInfixExpression)
+	p.registerInfix(token.NOT_EQUALS, p.parseInfixExpression)
+	p.registerInfix(token.LTAG, p.parseInfixExpression)
+	p.registerInfix(token.RTAG, p.parseInfixExpression)
 	return p
 }
 
@@ -214,6 +233,17 @@ func (p *Parser) parseExpression(precedence int) ast.Expression {
 
 	leftExp := prefix()
 
+	for !p.peekTokenIs(token.SEMICOLON) && precedence < p.peekPrecedence() {
+		infix := p.infixParseFns[p.peekToken.Type]
+
+		if infix == nil {
+			return leftExp
+		}
+
+		p.nextToken()
+		leftExp = infix(leftExp)
+	}
+
 	return leftExp
 }
 
@@ -227,6 +257,20 @@ func (p *Parser) parsePrefixExpression() ast.Expression {
 
 	expression.Right = p.parseExpression(PREFIX)
 	return expression
+}
+
+func (p *Parser) parseInfixExpression(left ast.Expression) ast.Expression {
+	exp := &ast.InfixExpression{
+		Token: p.curToken,
+		Operator: p.curToken.Literal,
+		Left: left,
+	}
+
+	precedence := p.curPrecedence()
+	p.nextToken()
+	exp.Right = p.parseExpression(precedence)
+
+	return exp
 }
 
 func (p *Parser) parseIdentifier() ast.Expression {
@@ -254,7 +298,23 @@ func (p *Parser) curTokenIs(tokenType token.TokenType) bool {
 
 func (p *Parser) peekTokenIs(tokenType token.TokenType) bool {
 	return p.peekToken.Type == tokenType
-} 
+}
+
+func (p *Parser) peekPrecedence() int {
+	if p, ok := precedences[p.peekToken.Type]; ok {
+		return p
+	}
+
+	return LOWEST
+}
+
+func (p *Parser) curPrecedence() int {
+	if p, ok := precedences[p.curToken.Type]; ok {
+		return p
+	}
+
+	return LOWEST
+}
 
 func (p *Parser) expectPeek(tokenType token.TokenType) bool {
 	if p.peekTokenIs(tokenType) {
