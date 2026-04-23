@@ -42,7 +42,7 @@ const (
 	LPAREN // (
 	RPAREN // )
 	LBRACE // {
-	RBRACE //}
+	RBRACE // }
 	LTAG   // <
 	RTAG   // >
 
@@ -52,6 +52,7 @@ const (
 	FALSE
 	IF
 	ELSE
+	ELSEIF
 	RETURN
 	PUB
 	MUT

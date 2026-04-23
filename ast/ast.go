@@ -156,9 +156,9 @@ func (il *IntegerLiteral) String() string {
 }
 
 type PrefixExpression struct {
-	Token token.Token
+	Token    token.Token
 	Operator string
-	Right Expression
+	Right    Expression
 }
 
 func (pe *PrefixExpression) expressionNode() {}
@@ -178,16 +178,16 @@ func (pe *PrefixExpression) String() string {
 }
 
 type InfixExpression struct {
-	Token token.Token
-	Left Expression
+	Token    token.Token
+	Left     Expression
 	Operator string
-	Right Expression
+	Right    Expression
 }
 
 func (ie *InfixExpression) expressionNode() {}
 
 func (ie *InfixExpression) TokenLiteral() string {
-	return ie.TokenLiteral()
+	return ie.Token.Literal
 }
 
 func (ie *InfixExpression) String() string {
@@ -199,6 +199,69 @@ func (ie *InfixExpression) String() string {
 	out.WriteString(" ")
 	out.WriteString(ie.Right.String())
 	out.WriteString(")")
+
+	return out.String()
+}
+
+type Boolean struct {
+	Token token.Token
+	Value bool
+}
+
+func (b *Boolean) expressionNode() {}
+
+func (b *Boolean) TokenLiteral() string {
+	return b.Token.Literal
+}
+
+func (b *Boolean) String() string {
+	return b.Token.Literal
+}
+
+type IfExpression struct {
+	Token     token.Token
+	Condition Expression
+	Body      *BlockExpression
+	Else      Expression
+}
+
+func (ife *IfExpression) expressionNode() {}
+
+func (ife *IfExpression) TokenLiteral() string {
+	return ife.Token.Literal
+}
+
+func (ife *IfExpression) String() string {
+	var out bytes.Buffer
+
+	out.WriteString("if ")
+	out.WriteString(ife.Condition.String())
+	out.WriteString(" ")
+	out.WriteString(ife.Body.String())
+	if ife.Else != nil {
+		out.WriteString(ife.Else.String())
+	}
+
+	return out.String()
+}
+
+type BlockExpression struct {
+	Token      token.Token
+	Statements []Statement
+}
+
+func (bs *BlockExpression) expressionNode() {}
+
+func (bs *BlockExpression) TokenLiteral() string {
+	return bs.Token.Literal
+}
+
+func (bs *BlockExpression) String() string {
+	var out bytes.Buffer
+
+	for _, s := range bs.Statements {
+		out.WriteString(s.String())
+	}
 
 	return out.String()
 }

@@ -104,6 +104,10 @@ Should you want to use a specific type you may include the type between the iden
 universeAge: int64 := 3,000,000,000
 ```
 
+## If Statement Expressions
+
+If stataments will also count as expressions within Primordial. This allows the language t
+
 ## Expression Parsing
 
 This language will be implementing Pratt Parsing.
