@@ -11,7 +11,7 @@ import (
 
 type (
 	prefixParseFn func() ast.Expression
-	infixParseFn func(ast.Expression) ast.Expression
+	infixParseFn  func(ast.Expression) ast.Expression
 )
 
 const (
@@ -25,45 +25,45 @@ const (
 	CALL
 )
 
-var precedences = map[token.TokenType]int {
-	token.EQUALS: EQUALS,
-	token.NOT_EQUALS: EQUALS,
-	token.LTAG: LESSGREATER,
-	token.RTAG: LESSGREATER,
-	token.PLUS: SUM,
-	token.MINUS: SUM,
+var precedences = map[token.TokenType]int{
+	token.EQUALS:        EQUALS,
+	token.NOT_EQUALS:    EQUALS,
+	token.LTAG:          LESSGREATER,
+	token.RTAG:          LESSGREATER,
+	token.PLUS:          SUM,
+	token.MINUS:         SUM,
 	token.FORWARD_SLASH: PRODUCT,
-	token.ASTERIK: PRODUCT,
+	token.ASTERIK:       PRODUCT,
 }
 
 var systemTypes = map[string]bool{
 	"boolean": true,
-	"string": true,
-	"int": true,
-	"int8": true,
-	"uint8": true,
-	"int32": true,
-	"uint32": true,
-	"int64": true,
-	"uint64": true,
+	"string":  true,
+	"int":     true,
+	"int8":    true,
+	"uint8":   true,
+	"int32":   true,
+	"uint32":  true,
+	"int64":   true,
+	"uint64":  true,
 	"float32": true,
 	"float64": true,
 }
 
 type Parser struct {
-	l *lexer.Lexer
+	l      *lexer.Lexer
 	errors []string
 
-	curToken token.Token
+	curToken  token.Token
 	peekToken token.Token
 
 	prefixParseFns map[token.TokenType]prefixParseFn
-	infixParseFns map[token.TokenType]infixParseFn
+	infixParseFns  map[token.TokenType]infixParseFn
 }
 
 func New(l *lexer.Lexer) *Parser {
 	p := &Parser{
-		l: l,
+		l:      l,
 		errors: []string{},
 	}
 
@@ -79,6 +79,7 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerPrefix(token.FALSE, p.parseBoolean)
 	p.registerPrefix(token.LPAREN, p.parseGroupedExpression)
 	p.registerPrefix(token.IF, p.parseIfExpression)
+	p.registerPrefix(token.FN, p.parseFunctionLiteral)
 
 	p.infixParseFns = make(map[token.TokenType]infixParseFn)
 	p.registerInfix(token.PLUS, p.parseInfixExpression)
@@ -116,11 +117,13 @@ func (p *Parser) ParseProgram() *ast.Program {
 
 func (p *Parser) parseStatement() ast.Statement {
 	switch p.curToken.Type {
-	case token.PUB, token.MUT, token.CONST:
-		return p.parseDeclareStatement() 
+	case token.PUB:
+		return p.parseDeclareStatement()
+	case token.MUT, token.CONST:
+		return p.parseDeclareStatement()
 	case token.IDENT:
-		// peekTokenIs colon is fairly safe to use as other usages of ident: will be 
-		// covered within declare statements and not at this initial catch level 
+		// peekTokenIs colon is fairly safe to use as other usages of ident: will be
+		// covered within declare statements and not at this initial catch level
 		if p.peekTokenIs(token.COLON) || p.peekTokenIs(token.DECLARE) {
 			return p.parseDeclareStatement()
 		}
@@ -141,8 +144,8 @@ func (p *Parser) noPrefixParseFnError(t token.TokenType) {
 // VARIABLE DECLARATION
 func (p *Parser) parseDeclareStatement() *ast.DeclareStatement {
 	stmt := &ast.DeclareStatement{
-		Public: false,
-		Mutable: false,
+		Public:   false,
+		Mutable:  false,
 		Constant: false,
 	}
 
@@ -198,6 +201,132 @@ func (p *Parser) parseDeclareStatement() *ast.DeclareStatement {
 	return stmt
 }
 
+// Should come out exactly on )
+func (p *Parser) parseFunctionLiteral() ast.Expression {
+	fn := &ast.FunctionLiteral{Token: p.curToken}
+
+	// is fn
+	if !p.peekTokenIs(token.LPAREN) {
+		return nil
+	}
+
+	// is (
+	p.nextToken()
+
+	var err error
+	fn.Parameters, err = p.parseFunctionParameters()
+	if err != nil {
+		// TODO: Handle error
+		return nil
+	}
+
+	// is )
+	if p.peekTokenIs(token.COLON) {
+		p.nextToken() // is :
+
+		fn.ReturnTypes, err = p.parseReturnTypes()
+		if err != nil {
+			// TODO: Handle errors
+			return nil
+		}
+	} else {
+		fn.ReturnTypes = []*ast.ReturnType{}
+	}
+
+	// should be a type ident
+	if !p.expectPeek(token.LBRACE) {
+		return nil
+	}
+
+	fn.Body = p.parseBlockExpression()
+
+	return fn
+}
+
+func (p *Parser) parseFunctionParameters() ([]*ast.Parameter, error) {
+	params := []*ast.Parameter{}
+
+	// currently ( looking for ident or )
+	p.nextToken()
+	if p.curTokenIs(token.RPAREN) {
+		// empty list returning on )
+		return params, nil
+	}
+
+	for {
+		param := &ast.Parameter{}
+
+		if !p.curTokenIs(token.IDENT) {
+			// if its an error we're currently throwing a full parsing error
+			return nil, fmt.Errorf("expected parameter name. got=%v", p.peekToken.Type)
+		}
+
+		param.Name = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+		fmt.Printf("curToken: cur=%+v\n", p.curToken)
+
+		// This will be the type
+		p.nextToken()
+		typeName := p.curToken.Literal
+		if _, ok := systemTypes[typeName]; !ok {
+			return nil, fmt.Errorf("unknown type %s", typeName)
+		}
+		param.Type = typeName
+
+		params = append(params, param)
+
+		// After a parameter, we expect either ',' or ')'
+		if p.peekTokenIs(token.RPAREN) {
+			// Current ident so will go to ) on the outer loop
+			break
+		}
+		if p.peekTokenIs(token.COMMA) {
+			p.nextToken() // consume ','
+			// want ident so go for that
+			p.nextToken()
+			continue
+		}
+		return nil, fmt.Errorf("expected ',' or ')', got %v", p.peekToken.Type)
+	}
+
+	p.nextToken() // move to rparen
+
+	return params, nil
+}
+
+func (p *Parser) parseReturnTypes() ([]*ast.ReturnType, error) {
+	returnTypes := []*ast.ReturnType{}
+	p.nextToken()
+
+	for {
+		if !p.curTokenIs(token.IDENT) {
+			return nil, fmt.Errorf("expected identifier return type but found %v", p.curToken.Type)
+		}
+
+		rt := &ast.ReturnType{}
+
+		typeName := p.curToken.Literal
+		if _, ok := systemTypes[typeName]; !ok {
+			return nil, fmt.Errorf("unknown type %s", typeName)
+		}
+		rt.Type = typeName
+
+		returnTypes = append(returnTypes, rt)
+
+		if p.peekTokenIs(token.LBRACE) {
+			// Current ident so want to break out
+			break
+		}
+		if p.peekTokenIs(token.COMMA) {
+			p.nextToken() // consume ','
+			// want ident so go for that
+			p.nextToken()
+			continue
+		}
+	}
+
+	return returnTypes, nil
+}
+
 func (p *Parser) parseIfExpression() ast.Expression {
 	expression := &ast.IfExpression{
 		Token: p.curToken,
@@ -234,7 +363,7 @@ func (p *Parser) parseIfExpression() ast.Expression {
 		}
 	}
 
-	return expression;
+	return expression
 }
 
 func (p *Parser) parseBlockExpression() *ast.BlockExpression {
@@ -309,7 +438,7 @@ func (p *Parser) parseExpression(precedence int) ast.Expression {
 func (p *Parser) parseGroupedExpression() ast.Expression {
 	p.nextToken()
 	exp := p.parseExpression(LOWEST)
-	
+
 	if !p.expectPeek(token.RPAREN) {
 		return nil
 	}
@@ -319,7 +448,7 @@ func (p *Parser) parseGroupedExpression() ast.Expression {
 
 func (p *Parser) parsePrefixExpression() ast.Expression {
 	expression := &ast.PrefixExpression{
-		Token: p.curToken,
+		Token:    p.curToken,
 		Operator: p.curToken.Literal,
 	}
 
@@ -331,9 +460,9 @@ func (p *Parser) parsePrefixExpression() ast.Expression {
 
 func (p *Parser) parseInfixExpression(left ast.Expression) ast.Expression {
 	exp := &ast.InfixExpression{
-		Token: p.curToken,
+		Token:    p.curToken,
 		Operator: p.curToken.Literal,
-		Left: left,
+		Left:     left,
 	}
 
 	precedence := p.curPrecedence()
@@ -354,7 +483,7 @@ func (p *Parser) parseIntegerLiteral() ast.Expression {
 	if err != nil {
 		msg := fmt.Sprintf("could not parse %q as integer", p.curToken.Literal)
 		p.errors = append(p.errors, msg)
-		return nil 
+		return nil
 	}
 
 	lit.Value = value
@@ -415,8 +544,8 @@ func (p *Parser) Errors() []string {
 
 func (p *Parser) peekError(t token.TokenType) {
 	msg := fmt.Sprintf(
-		"expected next token to be %s, but got %s instead", 
-		token.GetTokenName(int(t)), 
+		"expected next token to be %s, but got %s instead",
+		token.GetTokenName(int(t)),
 		token.GetTokenName(int(p.peekToken.Type)),
 	)
 

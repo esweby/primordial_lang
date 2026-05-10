@@ -2,6 +2,7 @@ package ast
 
 import (
 	"bytes"
+	"strings"
 
 	"github.com/esweby/primordial_lang/token"
 )
@@ -218,6 +219,8 @@ func (b *Boolean) String() string {
 	return b.Token.Literal
 }
 
+// Issue with this implementation is that it is ignorant of if. if else, else
+// Todo would be to swap Token token.Token for a pos argument and
 type IfExpression struct {
 	Token     token.Token
 	Condition Expression
@@ -234,7 +237,11 @@ func (ife *IfExpression) TokenLiteral() string {
 func (ife *IfExpression) String() string {
 	var out bytes.Buffer
 
-	out.WriteString("if ")
+	if ife.Condition != nil {
+		out.WriteString("if ")
+	} else {
+		out.WriteString("else ")
+	}
 	out.WriteString(ife.Condition.String())
 	out.WriteString(" ")
 	out.WriteString(ife.Body.String())
@@ -243,6 +250,63 @@ func (ife *IfExpression) String() string {
 	}
 
 	return out.String()
+}
+
+type FunctionLiteral struct {
+	Token      token.Token
+	Parameters []*Parameter
+	ReturnTypes []*ReturnType
+	Body       *BlockExpression
+}
+
+func (fl *FunctionLiteral) expressionNode() {}
+
+func (fl *FunctionLiteral) TokenLiteral() string {
+	return fl.Token.Literal
+}
+
+func (fl *FunctionLiteral) String() string {
+	var out bytes.Buffer
+
+	params := []string{}
+	for _, p := range fl.Parameters {
+		params = append(params, p.String())
+	}
+
+	returnTypes := []string{}
+	for _, rt := range fl.ReturnTypes {
+		returnTypes = append(returnTypes, rt.String())
+	}
+
+	out.WriteString(fl.TokenLiteral())
+	out.WriteString("(")
+	out.WriteString(strings.Join(params, ", "))
+	out.WriteString("): ")
+	out.WriteString(strings.Join(returnTypes, ", "))
+	out.WriteString(fl.Body.String())
+
+	return out.String()
+}
+
+type Parameter struct {
+	Name *Identifier
+	Type string
+}
+
+func (p *Parameter) String() string {
+	var out bytes.Buffer
+	out.WriteString(p.Name.String())
+	out.WriteString(" ")
+	out.WriteString(p.Type)
+	return out.String()
+}
+
+type ReturnType struct {
+	Type string
+}
+
+func (rt *ReturnType) String() string {
+	return rt.Type
 }
 
 type BlockExpression struct {
