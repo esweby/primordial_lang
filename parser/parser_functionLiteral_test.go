@@ -9,25 +9,9 @@ import (
 )
 
 func TestFunctionLiteralBasicParsing(t *testing.T) {
-	input := `fn() {x := 19;}`
+	input := `x := fn() {x := 19;}`
 
-	l := lexer.New(input)
-	p := New(l)
-	program := p.ParseProgram()
-	checkParserErrors(t, p)
-	checkNumExpectedStatements(t, program.Statements, 1)
-
-	stmt, ok := program.Statements[0].(*ast.ExpressionStatement)
-	if !ok {
-		t.Fatalf("program.Statements[0] is not ast.ExpressionStatement. got=%T",
-			program.Statements[0])
-	}
-
-	function, ok := stmt.Expression.(*ast.FunctionLiteral)
-	if !ok {
-		t.Fatalf("stmt.Expression is not ast.FunctionLiteral. got=%T",
-			stmt.Expression)
-	}
+	function := parseFunctionLiteral(t, input)
 
 	if len(function.Parameters) != 0 {
 		t.Fatalf("expected 0 parameters. got=%d", len(function.Parameters))
@@ -39,25 +23,9 @@ func TestFunctionLiteralBasicParsing(t *testing.T) {
 }
 
 func TestFunctionLiteralWithArguments(t *testing.T) {
-	input := `fn(x int32, y int32) {x + y;}`
+	input := `x := fn(x int32, y int32) {x + y;}`
 
-	l := lexer.New(input)
-	p := New(l)
-	program := p.ParseProgram()
-	checkParserErrors(t, p)
-	checkNumExpectedStatements(t, program.Statements, 1)
-
-	stmt, ok := program.Statements[0].(*ast.ExpressionStatement)
-	if !ok {
-		t.Fatalf("program.Statements[0] is not ast.ExpressionStatement. got=%T",
-			program.Statements[0])
-	}
-
-	function, ok := stmt.Expression.(*ast.FunctionLiteral)
-	if !ok {
-		t.Fatalf("stmt.Expression is not ast.FunctionLiteral. got=%T",
-			stmt.Expression)
-	}
+	function := parseFunctionLiteral(t, input)
 
 	if len(function.Parameters) != 2 {
 		t.Fatalf("expected 2 parameters. got=%d", len(function.Parameters))
@@ -72,25 +40,9 @@ func TestFunctionLiteralWithArguments(t *testing.T) {
 }
 
 func TestFunctionLiteralParsing(t *testing.T) {
-	input := `fn(x int32, y int32): int32 { x + y; }`
+	input := `x := fn(x int32, y int32): int32 { x + y; }`
 
-	l := lexer.New(input)
-	p := New(l)
-	program := p.ParseProgram()
-	checkParserErrors(t, p)
-	checkNumExpectedStatements(t, program.Statements, 1)
-
-	stmt, ok := program.Statements[0].(*ast.ExpressionStatement)
-	if !ok {
-		t.Fatalf("program.Statements[0] is not ast.ExpressionStatement. got=%T",
-			program.Statements[0])
-	}
-
-	function, ok := stmt.Expression.(*ast.FunctionLiteral)
-	if !ok {
-		t.Fatalf("stmt.Expression is not ast.FunctionLiteral. got=%T",
-			stmt.Expression)
-	}
+	function := parseFunctionLiteral(t, input)
 
 	if len(function.Parameters) != 2 {
 		t.Fatalf("expected 2 parameters. got=%d", len(function.Parameters))
@@ -119,17 +71,17 @@ func TestParsingParameters(t *testing.T) {
 		expected expectedType
 	}{
 		{
-			input:    `fn() {}`,
+			input:    `a := fn() {}`,
 			expected: expectedType{},
 		},
 		{
-			input: `fn(x int32) {}`,
+			input: `b := fn(x int32) {}`,
 			expected: expectedType{
 				createParameterToken("x", "int32"),
 			},
 		},
 		{
-			input: `fn(x int32, y int32, z int32) {}`,
+			input: `c := fn(x int32, y int32, z int32) {}`,
 			expected: expectedType{
 				createParameterToken("x", "int32"),
 				createParameterToken("y", "int32"),
@@ -139,13 +91,7 @@ func TestParsingParameters(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		l := lexer.New(tt.input)
-		p := New(l)
-		program := p.ParseProgram()
-		checkParserErrors(t, p)
-
-		stmt := program.Statements[0].(*ast.ExpressionStatement)
-		function := stmt.Expression.(*ast.FunctionLiteral)
+		function := parseFunctionLiteral(t, tt.input)
 
 		if len(function.Parameters) != len(tt.expected) {
 			t.Errorf(
@@ -165,6 +111,29 @@ func TestParsingParameters(t *testing.T) {
 			}
 		}
 	}
+}
+
+func parseFunctionLiteral(t *testing.T, input string) *ast.FunctionLiteral {
+	l := lexer.New(input)
+	p := New(l)
+	program := p.ParseProgram()
+	checkParserErrors(t, p)
+	checkNumExpectedStatements(t, program.Statements, 1)
+
+	stmt := program.Statements[0]
+
+	declareStmt, ok := stmt.(*ast.DeclareStatement)
+	if !ok {
+		t.Errorf("stmt not *ast.DeclareStatement. Got=%T", stmt)
+	}
+
+	function, ok := declareStmt.Value.(*ast.FunctionLiteral)
+	if !ok {
+		t.Fatalf("stmt.Expression is not ast.FunctionLiteral. got=%T",
+			declareStmt.Value)
+	}
+
+	return function
 }
 
 func createParameterToken(paramName string, typeName string) *ast.Parameter {

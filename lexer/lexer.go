@@ -5,25 +5,38 @@ import "github.com/esweby/primordial_lang/token"
 type Lexer struct {
 	input         string
 	position      int
-	readPoisition int
+	readPosition int
 	ch            byte
+	line          int
+	column        int
 }
 
 func New(input string) *Lexer {
-	l := &Lexer{input: input}
+	l := &Lexer{
+		input:  input,
+		line:   1,
+		column: 0,
+	}
 	l.readChar()
 	return l
 }
 
 func (l *Lexer) readChar() {
-	if l.readPoisition >= len(l.input) {
-		l.ch = 0
-	} else {
-		l.ch = l.input[l.readPoisition]
+	if l.ch == '\n' {
+		l.line++
+		l.column = 0
 	}
 
-	l.position = l.readPoisition
-	l.readPoisition += 1
+	if l.readPosition >= len(l.input) {
+		l.ch = 0
+		l.position = l.readPosition
+		return
+	}
+
+	l.ch = l.input[l.readPosition]
+	l.position = l.readPosition
+	l.readPosition++
+	l.column++
 }
 
 func (l *Lexer) NextToken() token.Token {
@@ -36,51 +49,51 @@ func (l *Lexer) NextToken() token.Token {
 		if l.peekChar() == '=' {
 			tok = l.joinTokens(token.EQUALS)
 		} else {
-			tok = newToken(token.ASSIGN, l.ch)
+			tok = l.newToken(token.ASSIGN, l.ch)
 		}
 	case ':':
 		if l.peekChar() == '=' {
 			tok = l.joinTokens(token.DECLARE)
 		} else {
-			tok = newToken(token.COLON, l.ch)
+			tok = l.newToken(token.COLON, l.ch)
 		}
 	case ';':
-		tok = newToken(token.SEMICOLON, l.ch)
+		tok = l.newToken(token.SEMICOLON, l.ch)
 	case ',':
-		tok = newToken(token.COMMA, l.ch)
+		tok = l.newToken(token.COMMA, l.ch)
 	case '+':
-		tok = newToken(token.PLUS, l.ch)
+		tok = l.newToken(token.PLUS, l.ch)
 	case '-':
-		tok = newToken(token.MINUS, l.ch)
+		tok = l.newToken(token.MINUS, l.ch)
 	case '!':
 		if l.peekChar() == '=' {
 			tok = l.joinTokens(token.NOT_EQUALS)
 		} else {
-			tok = newToken(token.BANG, l.ch)
+			tok = l.newToken(token.BANG, l.ch)
 		}
 	case '*':
-		tok = newToken(token.ASTERIK, l.ch)
+		tok = l.newToken(token.ASTERIK, l.ch)
 	case '/':
-		tok = newToken(token.FORWARD_SLASH, l.ch)
+		tok = l.newToken(token.FORWARD_SLASH, l.ch)
 	case '(':
-		tok = newToken(token.LPAREN, l.ch)
+		tok = l.newToken(token.LPAREN, l.ch)
 	case ')':
-		tok = newToken(token.RPAREN, l.ch)
+		tok = l.newToken(token.RPAREN, l.ch)
 	case '{':
-		tok = newToken(token.LBRACE, l.ch)
+		tok = l.newToken(token.LBRACE, l.ch)
 	case '}':
-		tok = newToken(token.RBRACE, l.ch)
+		tok = l.newToken(token.RBRACE, l.ch)
 	case '<':
 		if l.peekChar() == '=' {
 			tok = l.joinTokens(token.LESS_THAN_OR_EQUALS)
 		} else {
-			tok = newToken(token.LTAG, l.ch)
+			tok = l.newToken(token.LTAG, l.ch)
 		}
 	case '>':
 		if l.peekChar() == '=' {
 			tok = l.joinTokens(token.GREATER_THAN_OR_EQUALS)
 		} else {
-			tok = newToken(token.RTAG, l.ch)
+			tok = l.newToken(token.RTAG, l.ch)
 		}
 	case 0:
 		tok.Literal = ""
@@ -95,7 +108,7 @@ func (l *Lexer) NextToken() token.Token {
 			tok.Literal = l.readNumber()
 			return tok
 		} else {
-			tok = newToken(token.ILLEGAL, l.ch)
+			tok = l.newToken(token.ILLEGAL, l.ch)
 		}
 	}
 
@@ -104,11 +117,11 @@ func (l *Lexer) NextToken() token.Token {
 }
 
 func (l *Lexer) peekChar() byte {
-	if l.readPoisition >= len(l.input) {
+	if l.readPosition >= len(l.input) {
 		return 0
 	}
 
-	return l.input[l.readPoisition]
+	return l.input[l.readPosition]
 }
 
 func (l *Lexer) readIdentifier() string {
@@ -135,8 +148,13 @@ func (l *Lexer) skipWhitespace() {
 	}
 }
 
-func newToken(tokenType token.TokenType, ch byte) token.Token {
-	return token.Token{Type: tokenType, Literal: string(ch)}
+func (l *Lexer) newToken(tokenType token.TokenType, ch byte) token.Token {
+	return token.Token{
+		Type:    tokenType,
+		Literal: string(ch),
+		Line:    l.line,
+		Column:  l.column,
+	}
 }
 
 func isLetter(ch byte) bool {

@@ -10,23 +10,7 @@ import (
 func TestIfExpression(t *testing.T) {
 	input := `if (x < y) { x; }`
 
-	l := lexer.New(input)
-	p := New(l)
-
-	program := p.ParseProgram()
-
-	checkParserErrors(t, p)
-	checkNumExpectedStatements(t, program.Statements, 1)
-
-	stmt, ok := program.Statements[0].(*ast.ExpressionStatement)
-	if !ok {
-		t.Fatalf("program.statements[0] is not ast.ExpressionStatement. Got=%T", program.Statements[0])
-	}
-
-	exp, ok := stmt.Expression.(*ast.IfExpression)
-	if !ok {
-		t.Fatalf("stmt.Expression not ast.IfExpression. Got=%T", stmt.Expression)
-	}
+	exp := parseIfStatement(t, input)
 
 	if !testInfixExpression(t, exp.Condition, "x", "<", "y") {
 		return
@@ -51,20 +35,7 @@ func TestIfExpression(t *testing.T) {
 func TestIfElseExpression(t *testing.T) {
 	input := `if (x < y) { x; } else { z; }`
 
-	l := lexer.New(input)
-	p := New(l)
-
-	program := p.ParseProgram()
-
-	checkParserErrors(t, p)
-	checkNumExpectedStatements(t, program.Statements, 1)
-
-	stmt, ok := program.Statements[0].(*ast.ExpressionStatement)
-	if !ok {
-		t.Fatalf("program.statements[0] is not ast.ExpressionStatement. Got=%T", program.Statements[0])
-	}
-
-	exp, _ := stmt.Expression.(*ast.IfExpression)
+	exp := parseIfStatement(t, input)
 
 	if exp.Else == nil {
 		t.Errorf("exp.Else is nil")
@@ -75,7 +46,7 @@ func TestIfElseExpression(t *testing.T) {
 		t.Fatalf("exp.Else is not ast.BlockExpression. Got=%T", exp.Else)
 	}
 
-	stmt = elseBody.Statements[0].(*ast.ExpressionStatement)
+	stmt := elseBody.Statements[0].(*ast.ExpressionStatement)
 	if !testIdentifier(t, stmt.Expression, "z") {
 		return
 	}
@@ -84,20 +55,7 @@ func TestIfElseExpression(t *testing.T) {
 func TestIfElseIfExpression(t *testing.T) {
 	input := `if (x < y) { x; } else if (x > y) { z; }`
 
-	l := lexer.New(input)
-	p := New(l)
-
-	program := p.ParseProgram()
-
-	checkParserErrors(t, p)
-	checkNumExpectedStatements(t, program.Statements, 1)
-
-	stmt, ok := program.Statements[0].(*ast.ExpressionStatement)
-	if !ok {
-		t.Fatalf("program.statements[0] is not ast.ExpressionStatement. Got=%T", program.Statements[0])
-	}
-
-	exp, _ := stmt.Expression.(*ast.IfExpression)
+	exp := parseIfStatement(t, input)
 
 	if exp.Else == nil {
 		t.Errorf("exp.Else is nil")
@@ -129,7 +87,7 @@ func TestIfElseIfExpression(t *testing.T) {
 }
 
 func TestIfExpressionInDeclaration(t *testing.T) {
-	input := `a := if (x < y) { x; } else { z; };`
+	input := `a := if (x < y) { x; } else { z; }`
 
 	l := lexer.New(input)
 	p := New(l)
@@ -182,4 +140,26 @@ func TestIfExpressionInDeclaration(t *testing.T) {
 	if !testIdentifier(t, elseStmt.Expression, "z") {
 		return
 	}
+}
+
+func parseIfStatement(t *testing.T, input string) *ast.IfExpression {
+	l := lexer.New(input)
+	p := New(l)
+
+	program := p.ParseProgram()
+
+	checkParserErrors(t, p)
+	checkNumExpectedStatements(t, program.Statements, 1)
+
+	stmt, ok := program.Statements[0].(*ast.ExpressionStatement)
+	if !ok {
+		t.Fatalf("program.statements[0] is not ast.ExpressionStatement. Got=%T", program.Statements[0])
+	}
+
+	exp, ok := stmt.Expression.(*ast.IfExpression)
+	if !ok {
+		t.Fatalf("stmt.Expression not ast.IfExpression. Got=%T", stmt.Expression)
+	}
+
+	return exp
 }

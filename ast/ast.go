@@ -252,11 +252,42 @@ func (ife *IfExpression) String() string {
 	return out.String()
 }
 
-type FunctionLiteral struct {
-	Token      token.Token
-	Parameters []*Parameter
+type FunctionStatement struct {
+	Token       token.Token
+	Public      bool
+	Name        *Identifier
+	Parameters  []*Parameter
 	ReturnTypes []*ReturnType
-	Body       *BlockExpression
+	Body        *BlockExpression
+}
+
+func (fs *FunctionStatement) statementNode() {}
+
+func (fs *FunctionStatement) TokenLiteral() string {
+	return fs.Token.Literal
+}
+
+func (fs *FunctionStatement) String() string {
+	var out bytes.Buffer
+
+	if fs.Public {
+		out.WriteString("pub ")
+	}
+
+	out.WriteString("fn ")
+	out.WriteString(fs.Name.String())
+	out.WriteString(parametersToString(fs.Parameters))
+	out.WriteString(returnTypesToString(fs.ReturnTypes))
+	out.WriteString(fs.Body.String())
+
+	return out.String()
+}
+
+type FunctionLiteral struct {
+	Token       token.Token
+	Parameters  []*Parameter
+	ReturnTypes []*ReturnType
+	Body        *BlockExpression
 }
 
 func (fl *FunctionLiteral) expressionNode() {}
@@ -268,21 +299,14 @@ func (fl *FunctionLiteral) TokenLiteral() string {
 func (fl *FunctionLiteral) String() string {
 	var out bytes.Buffer
 
-	params := []string{}
-	for _, p := range fl.Parameters {
-		params = append(params, p.String())
-	}
-
 	returnTypes := []string{}
 	for _, rt := range fl.ReturnTypes {
 		returnTypes = append(returnTypes, rt.String())
 	}
 
 	out.WriteString(fl.TokenLiteral())
-	out.WriteString("(")
-	out.WriteString(strings.Join(params, ", "))
-	out.WriteString("): ")
-	out.WriteString(strings.Join(returnTypes, ", "))
+	out.WriteString(parametersToString(fl.Parameters))
+	out.WriteString(returnTypesToString(fl.ReturnTypes))
 	out.WriteString(fl.Body.String())
 
 	return out.String()
@@ -326,6 +350,38 @@ func (bs *BlockExpression) String() string {
 	for _, s := range bs.Statements {
 		out.WriteString(s.String())
 	}
+
+	return out.String()
+}
+
+func parametersToString(params []*Parameter) string {
+	var out bytes.Buffer
+
+	paramsString := []string{}
+	for _, p := range params {
+		paramsString = append(paramsString, p.String())
+	}
+
+	out.WriteString("(")
+	out.WriteString(strings.Join(paramsString, ", "))
+	out.WriteString(")")
+
+	return out.String()
+}
+
+func returnTypesToString(returnTyoes []*ReturnType) string {
+	var out bytes.Buffer
+
+	returnTypeStrings := []string{}
+	for _, rt := range returnTyoes {
+		returnTypeStrings = append(returnTypeStrings, rt.String())
+	}
+
+	if len(returnTypeStrings) > 0 {
+		out.WriteString(": ")
+		out.WriteString(strings.Join(returnTypeStrings, ", "))
+	}
+	out.WriteString(" ")
 
 	return out.String()
 }

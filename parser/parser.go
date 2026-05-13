@@ -74,7 +74,7 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerPrefix(token.IDENT, p.parseIdentifier)
 	p.registerPrefix(token.INT_LITERAL, p.parseIntegerLiteral)
 	p.registerPrefix(token.BANG, p.parsePrefixExpression)
-	p.registerPrefix(token.MINUS, p.parsePrefixExpression) // -10
+	p.registerPrefix(token.MINUS, p.parsePrefixExpression)
 	p.registerPrefix(token.TRUE, p.parseBoolean)
 	p.registerPrefix(token.FALSE, p.parseBoolean)
 	p.registerPrefix(token.LPAREN, p.parseGroupedExpression)
@@ -118,6 +118,9 @@ func (p *Parser) ParseProgram() *ast.Program {
 func (p *Parser) parseStatement() ast.Statement {
 	switch p.curToken.Type {
 	case token.PUB:
+		if p.peekTokenIs(token.FN) {
+			return p.parseFunctionStatement()
+		}
 		return p.parseDeclareStatement()
 	case token.MUT, token.CONST:
 		return p.parseDeclareStatement()
@@ -131,6 +134,8 @@ func (p *Parser) parseStatement() ast.Statement {
 		return p.parseExpressionStatement()
 	case token.RETURN:
 		return p.parseReturnStatement()
+	case token.FN:
+		return p.parseFunctionStatement()
 	default:
 		return p.parseExpressionStatement()
 	}
@@ -194,14 +199,70 @@ func (p *Parser) parseDeclareStatement() *ast.DeclareStatement {
 
 	stmt.Value = p.parseExpression(LOWEST)
 
-	for !p.curTokenIs(token.SEMICOLON) {
+	for !p.curTokenIs(token.SEMICOLON) && !p.curTokenIs(token.EOF) && !p.curTokenIs(token.RBRACE) {
 		p.nextToken()
 	}
 
 	return stmt
 }
 
-// Should come out exactly on )
+func (p *Parser) parseFunctionStatement() ast.Statement {
+	fn := &ast.FunctionStatement{}
+
+	if p.curTokenIs(token.PUB) {
+		fn.Public = true
+		p.nextToken()
+	}
+
+	fn.Token = p.curToken
+	p.nextToken()
+
+	if !p.curTokenIs(token.IDENT) {
+		// TODO: Error processing
+		return nil
+	}
+
+	fn.Name = &ast.Identifier{
+		Token: p.curToken,
+		Value: p.curToken.Literal,
+	}
+
+	if !p.peekTokenIs(token.LPAREN) {
+		return nil
+	}
+
+	p.nextToken() // (
+
+	var err error
+	fn.Parameters, err = p.parseFunctionParameters()
+	if err != nil {
+		// TODO: Handle error
+		return nil
+	}
+
+	// is )
+	if p.peekTokenIs(token.COLON) {
+		p.nextToken() // is :
+
+		fn.ReturnTypes, err = p.parseReturnTypes()
+		if err != nil {
+			// TODO: Handle errors
+			return nil
+		}
+	} else {
+		fn.ReturnTypes = []*ast.ReturnType{}
+	}
+
+	// should be a type ident
+	if !p.expectPeek(token.LBRACE) {
+		return nil
+	}
+
+	fn.Body = p.parseBlockExpression()
+
+	return fn
+}
+
 func (p *Parser) parseFunctionLiteral() ast.Expression {
 	fn := &ast.FunctionLiteral{Token: p.curToken}
 
@@ -262,7 +323,6 @@ func (p *Parser) parseFunctionParameters() ([]*ast.Parameter, error) {
 		}
 
 		param.Name = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
-		fmt.Printf("curToken: cur=%+v\n", p.curToken)
 
 		// This will be the type
 		p.nextToken()
