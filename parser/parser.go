@@ -34,6 +34,7 @@ var precedences = map[token.TokenType]int{
 	token.MINUS:         SUM,
 	token.FORWARD_SLASH: PRODUCT,
 	token.ASTERIK:       PRODUCT,
+	token.LPAREN:        CALL,
 }
 
 var systemTypes = map[string]bool{
@@ -67,29 +68,12 @@ func New(l *lexer.Lexer) *Parser {
 		errors: []string{},
 	}
 
+	p.registerPrefixFns()
+	p.registerInfixFns()
+
 	p.nextToken()
 	p.nextToken()
 
-	p.prefixParseFns = make(map[token.TokenType]prefixParseFn)
-	p.registerPrefix(token.IDENT, p.parseIdentifier)
-	p.registerPrefix(token.INT_LITERAL, p.parseIntegerLiteral)
-	p.registerPrefix(token.BANG, p.parsePrefixExpression)
-	p.registerPrefix(token.MINUS, p.parsePrefixExpression)
-	p.registerPrefix(token.TRUE, p.parseBoolean)
-	p.registerPrefix(token.FALSE, p.parseBoolean)
-	p.registerPrefix(token.LPAREN, p.parseGroupedExpression)
-	p.registerPrefix(token.IF, p.parseIfExpression)
-	p.registerPrefix(token.FN, p.parseFunctionLiteral)
-
-	p.infixParseFns = make(map[token.TokenType]infixParseFn)
-	p.registerInfix(token.PLUS, p.parseInfixExpression)
-	p.registerInfix(token.MINUS, p.parseInfixExpression)
-	p.registerInfix(token.FORWARD_SLASH, p.parseInfixExpression)
-	p.registerInfix(token.ASTERIK, p.parseInfixExpression)
-	p.registerInfix(token.EQUALS, p.parseInfixExpression)
-	p.registerInfix(token.NOT_EQUALS, p.parseInfixExpression)
-	p.registerInfix(token.LTAG, p.parseInfixExpression)
-	p.registerInfix(token.RTAG, p.parseInfixExpression)
 	return p
 }
 
@@ -304,6 +288,12 @@ func (p *Parser) parseFunctionLiteral() ast.Expression {
 	return fn
 }
 
+func (p *Parser) parseCallExpression(function ast.Expression) ast.Expression {
+	exp := &ast.CallExpression{Token: p.curToken, Function: function}
+	exp.Arguments = p.parseCallArguments()
+	return exp
+}
+
 func (p *Parser) parseFunctionParameters() ([]*ast.Parameter, error) {
 	params := []*ast.Parameter{}
 
@@ -387,6 +377,31 @@ func (p *Parser) parseReturnTypes() ([]*ast.ReturnType, error) {
 	return returnTypes, nil
 }
 
+func (p *Parser) parseCallArguments() []ast.Expression {
+	args := []ast.Expression{}
+
+	if p.peekTokenIs(token.RPAREN) {
+		p.nextToken()
+		return args
+	}
+
+	p.nextToken()
+	args = append(args, p.parseExpression(LOWEST))
+
+	for p.peekTokenIs(token.COMMA) {
+		p.nextToken()
+		p.nextToken()
+
+		args = append(args, p.parseExpression(LOWEST))
+	}
+
+	if !p.expectPeek(token.RPAREN) {
+		return nil
+	}
+
+	return args
+}
+
 func (p *Parser) parseIfExpression() ast.Expression {
 	expression := &ast.IfExpression{
 		Token: p.curToken,
@@ -451,10 +466,13 @@ func (p *Parser) parseBlockExpression() *ast.BlockExpression {
 func (p *Parser) parseReturnStatement() *ast.ReturnStatement {
 	stmt := &ast.ReturnStatement{Token: p.curToken}
 	p.nextToken()
+	
+	stmt.ReturnValue = p.parseExpression(LOWEST)
 
 	for !p.curTokenIs(token.SEMICOLON) {
 		p.nextToken()
 	}
+
 
 	return stmt
 }
