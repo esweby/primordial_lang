@@ -6,6 +6,7 @@ import (
 	"github.com/esweby/primordial_lang/ast"
 	"github.com/esweby/primordial_lang/lexer"
 	"github.com/esweby/primordial_lang/token"
+	"github.com/esweby/primordial_lang/types"
 )
 
 func TestFunctionLiteralBasicParsing(t *testing.T) {
@@ -23,7 +24,7 @@ func TestFunctionLiteralBasicParsing(t *testing.T) {
 }
 
 func TestFunctionLiteralWithArguments(t *testing.T) {
-	input := `x := fn(x int32, y int32) {x + y;}`
+	input := `x := fn(x int32, y int32) { x + y; }`
 
 	function := parseFunctionLiteral(t, input)
 
@@ -77,15 +78,15 @@ func TestParsingParameters(t *testing.T) {
 		{
 			input: `b := fn(x int32) {}`,
 			expected: expectedType{
-				createParameterToken("x", "int32"),
+				createParameterToken("x", &types.Int32{}),
 			},
 		},
 		{
 			input: `c := fn(x int32, y int32, z int32) {}`,
 			expected: expectedType{
-				createParameterToken("x", "int32"),
-				createParameterToken("y", "int32"),
-				createParameterToken("z", "int32"),
+				createParameterToken("x",  &types.Int32{}),
+				createParameterToken("y",  &types.Int32{}),
+				createParameterToken("z",  &types.Int32{}),
 			},
 		},
 	}
@@ -136,7 +137,7 @@ func parseFunctionLiteral(t *testing.T, input string) *ast.FunctionLiteral {
 	return function
 }
 
-func createParameterToken(paramName string, typeName string) *ast.Parameter {
+func createParameterToken(paramName string, expType types.Type) *ast.Parameter {
 	return &ast.Parameter{
 		Name: &ast.Identifier{
 			Token: token.Token{
@@ -145,6 +146,6 @@ func createParameterToken(paramName string, typeName string) *ast.Parameter {
 			},
 			Value: paramName,
 		},
-		Type: typeName,
+		Type: expType,
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/esweby/primordial_lang/token"
+	"github.com/esweby/primordial_lang/types"
 )
 
 type Node interface {
@@ -63,7 +64,7 @@ type DeclareStatement struct {
 	Mutable  bool
 	Public   bool
 	Constant bool
-	Type     string
+	Type     types.Type
 }
 
 func (dl *DeclareStatement) statementNode() {}
@@ -314,23 +315,23 @@ func (fl *FunctionLiteral) String() string {
 
 type Parameter struct {
 	Name *Identifier
-	Type string
+	Type types.Type
 }
 
 func (p *Parameter) String() string {
 	var out bytes.Buffer
 	out.WriteString(p.Name.String())
 	out.WriteString(" ")
-	out.WriteString(p.Type)
+	out.WriteString(p.Type.Name())
 	return out.String()
 }
 
 type ReturnType struct {
-	Type string
+	Type types.Type
 }
 
 func (rt *ReturnType) String() string {
-	return rt.Type
+	return rt.Type.Name()
 }
 
 type CallExpression struct {

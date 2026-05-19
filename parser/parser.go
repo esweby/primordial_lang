@@ -7,6 +7,7 @@ import (
 	"github.com/esweby/primordial_lang/ast"
 	"github.com/esweby/primordial_lang/lexer"
 	"github.com/esweby/primordial_lang/token"
+	"github.com/esweby/primordial_lang/types"
 )
 
 type (
@@ -35,20 +36,6 @@ var precedences = map[token.TokenType]int{
 	token.FORWARD_SLASH: PRODUCT,
 	token.ASTERIK:       PRODUCT,
 	token.LPAREN:        CALL,
-}
-
-var systemTypes = map[string]bool{
-	"boolean": true,
-	"string":  true,
-	"int":     true,
-	"int8":    true,
-	"uint8":   true,
-	"int32":   true,
-	"uint32":  true,
-	"int64":   true,
-	"uint64":  true,
-	"float32": true,
-	"float64": true,
 }
 
 type Parser struct {
@@ -162,15 +149,15 @@ func (p *Parser) parseDeclareStatement() *ast.DeclareStatement {
 	p.nextToken()
 
 	if p.curTokenIs(token.COLON) {
-		// Only taking system defined types for the moment
 		p.nextToken()
 		expectedType := p.curToken.Literal
-		if _, ok := systemTypes[expectedType]; !ok {
+		builtin, ok := types.GetBuiltin(expectedType)
+		if !ok {
 			// error for invalid type
 			return nil
 		}
 
-		stmt.Type = expectedType
+		stmt.Type = builtin
 		p.nextToken()
 	}
 
@@ -226,8 +213,6 @@ func (p *Parser) parseFunctionStatement() ast.Statement {
 
 	// is )
 	if p.peekTokenIs(token.COLON) {
-		p.nextToken() // is :
-
 		fn.ReturnTypes, err = p.parseReturnTypes()
 		if err != nil {
 			// TODO: Handle errors
@@ -267,8 +252,6 @@ func (p *Parser) parseFunctionLiteral() ast.Expression {
 
 	// is )
 	if p.peekTokenIs(token.COLON) {
-		p.nextToken() // is :
-
 		fn.ReturnTypes, err = p.parseReturnTypes()
 		if err != nil {
 			// TODO: Handle errors
@@ -316,11 +299,15 @@ func (p *Parser) parseFunctionParameters() ([]*ast.Parameter, error) {
 
 		// This will be the type
 		p.nextToken()
-		typeName := p.curToken.Literal
-		if _, ok := systemTypes[typeName]; !ok {
-			return nil, fmt.Errorf("unknown type %s", typeName)
+		expectedType := p.curToken.Literal
+		builtin, ok := types.GetBuiltin(expectedType)
+		if !ok {
+			// error for invalid type
+			return nil, fmt.Errorf("unknown type %s", expectedType)
 		}
-		param.Type = typeName
+
+		param.Type = builtin
+
 
 		params = append(params, param)
 
@@ -344,37 +331,44 @@ func (p *Parser) parseFunctionParameters() ([]*ast.Parameter, error) {
 }
 
 func (p *Parser) parseReturnTypes() ([]*ast.ReturnType, error) {
-	returnTypes := []*ast.ReturnType{}
-	p.nextToken()
+    // Expect and consume the colon
+    if !p.expectPeek(token.COLON) {
+        return nil, fmt.Errorf("expected ':' for return types")
+    }
+    // Move to the first return type identifier
+    p.nextToken()
 
-	for {
-		if !p.curTokenIs(token.IDENT) {
-			return nil, fmt.Errorf("expected identifier return type but found %v", p.curToken.Type)
-		}
+    returnTypes := []*ast.ReturnType{}
 
-		rt := &ast.ReturnType{}
+    for {
+        if !p.curTokenIs(token.IDENT) {
+            return nil, fmt.Errorf("expected identifier return type, got %v", p.curToken.Type)
+        }
 
-		typeName := p.curToken.Literal
-		if _, ok := systemTypes[typeName]; !ok {
-			return nil, fmt.Errorf("unknown type %s", typeName)
-		}
-		rt.Type = typeName
+        // Read the current identifier as the type
+        typeLiteral := p.curToken.Literal
+        builtin, ok := types.GetBuiltin(typeLiteral)
+        if !ok {
+            return nil, fmt.Errorf("unknown type %s", typeLiteral)
+        }
 
-		returnTypes = append(returnTypes, rt)
+        rt := &ast.ReturnType{Type: builtin}
+        returnTypes = append(returnTypes, rt)
 
-		if p.peekTokenIs(token.LBRACE) {
-			// Current ident so want to break out
-			break
-		}
-		if p.peekTokenIs(token.COMMA) {
-			p.nextToken() // consume ','
-			// want ident so go for that
-			p.nextToken()
-			continue
-		}
-	}
+        // Check what comes after this type
+        if p.peekTokenIs(token.LBRACE) {
+            // Done – next is the function body's '{'
+            break
+        }
+        if p.peekTokenIs(token.COMMA) {
+            p.nextToken() // consume ','
+            p.nextToken() // move to next type identifier
+            continue
+        }
+        return nil, fmt.Errorf("expected ',' or '{' after return type, got %v", p.peekToken.Type)
+    }
 
-	return returnTypes, nil
+    return returnTypes, nil
 }
 
 func (p *Parser) parseCallArguments() []ast.Expression {
@@ -472,7 +466,6 @@ func (p *Parser) parseReturnStatement() *ast.ReturnStatement {
 	for !p.curTokenIs(token.SEMICOLON) {
 		p.nextToken()
 	}
-
 
 	return stmt
 }
