@@ -18,6 +18,12 @@ type Type interface {
 	Kind() Kind
 }
 
+type Invalid struct{}
+
+func (inv *Invalid) Name() string { return "invalid" }
+func (inv *Invalid) Size() int    { return 0 }
+func (inv *Invalid) Kind() Kind   { return KindInvalid }
+
 type Bool struct{}
 
 func (b *Bool) Name() string { return "bool" }
@@ -89,6 +95,12 @@ type String struct{}
 func (s *String) Name() string { return "string" }
 func (s *String) Size() int    { return 16 }
 func (s *String) Kind() Kind   { return KindString }
+
+type Function struct{}
+
+func (fn *Function) Name() string { return "function" }
+func (fn *Function) Size() int    { return 16 }
+func (fn *Function) Kind() Kind   { return KindFunction }
 
 type Named struct {
 	CustomName string
