@@ -98,6 +98,14 @@ func (dl *DeclareStatement) String() string {
 	return out.String()
 }
 
+func (dl *DeclareStatement) SetType(t types.Type) {
+	dl.Type = t
+}
+
+func (dl *DeclareStatement) GetType() types.Type {
+	return dl.Type
+}
+
 type ReturnStatement struct {
 	Token       token.Token
 	ReturnValue Expression
