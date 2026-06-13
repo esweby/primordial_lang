@@ -1,14 +1,5 @@
 package semantic
 
-import "github.com/esweby/primordial_lang/types"
-
-
-type Symbol struct {
-	name string
-	t types.Type
-	mut bool
-}
-
 type Scope map[string]Symbol
 
 type SymbolTable struct {
@@ -17,7 +8,7 @@ type SymbolTable struct {
 }
 
 func NewSymbolTable() *SymbolTable {
-	return &SymbolTable{ scope: make(Scope) }
+	return &SymbolTable{scope: make(Scope)}
 }
 
 func NewEnclosedSymbolTable(outer *SymbolTable) *SymbolTable {
@@ -26,9 +17,9 @@ func NewEnclosedSymbolTable(outer *SymbolTable) *SymbolTable {
 	return st
 }
 
-func (st *SymbolTable) Get(name string) (*Symbol, bool) {
+func (st *SymbolTable) Get(name string) (Symbol, bool) {
 	if sym, ok := st.scope[name]; ok {
-		return &sym, true
+		return sym, true
 	}
 
 	if st.outer != nil {
@@ -40,4 +31,9 @@ func (st *SymbolTable) Get(name string) (*Symbol, bool) {
 
 func (st *SymbolTable) Set(name string, sym Symbol) {
 	st.scope[name] = sym
+}
+
+func (st *SymbolTable) ExistsInCurrentScope(name string) bool {
+	_, ok := st.scope[name]
+	return ok
 }

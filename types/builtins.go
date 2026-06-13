@@ -15,21 +15,20 @@ var Float64Type = &Float64{}
 var StringType = &String{}
 var FunctionType = &Function{}
 
-
 var builtins = map[string]Type{
-	"invalid": InvalidType,
-	"bool": BoolType,
-	"int8": Int8Type,
-	"uint8": UInt8Type,
-	"int16": Int16Type,
-	"uint16": UInt16Type,
-	"int32": Int32Type,
-	"uint32": UInt32Type,
-	"int64": Int64Type,
-	"uint64": UInt64Type,
-	"float32": Float32Type,
-	"float64": Float64Type,
-	"string": StringType,
+	"invalid":  InvalidType,
+	"bool":     BoolType,
+	"int8":     Int8Type,
+	"uint8":    UInt8Type,
+	"int16":    Int16Type,
+	"uint16":   UInt16Type,
+	"int32":    Int32Type,
+	"uint32":   UInt32Type,
+	"int64":    Int64Type,
+	"uint64":   UInt64Type,
+	"float32":  Float32Type,
+	"float64":  Float64Type,
+	"string":   StringType,
 	"function": FunctionType,
 }
 
@@ -82,4 +81,3 @@ func IsArray(t Type) bool {
 func IsFunction(t Type) bool {
 	return t.Kind() == KindFunction
 }
-

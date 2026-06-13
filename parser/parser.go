@@ -94,17 +94,31 @@ func (p *Parser) parseStatement() ast.Statement {
 		}
 		return p.parseDeclareStatement()
 	case token.MUT, token.CONST:
-		return p.parseDeclareStatement()
+		stmt := p.parseDeclareStatement()
+		if stmt == nil {
+			return nil
+		}
+
+		return stmt
 	case token.IDENT:
 		// peekTokenIs colon is fairly safe to use as other usages of ident: will be
 		// covered within declare statements and not at this initial catch level
 		if p.peekTokenIs(token.COLON) || p.peekTokenIs(token.DECLARE) {
-			return p.parseDeclareStatement()
+			stmt := p.parseDeclareStatement()
+			if stmt == nil {
+				return nil
+			}
+
+			return stmt
 		}
 
 		return p.parseExpressionStatement()
 	case token.RETURN:
-		return p.parseReturnStatement()
+		stmt := p.parseReturnStatement()
+		if stmt == nil {
+			return nil
+		}
+		return stmt
 	case token.FN:
 		return p.parseFunctionStatement()
 	default:
@@ -123,6 +137,7 @@ func (p *Parser) parseDeclareStatement() *ast.DeclareStatement {
 		Public:   false,
 		Mutable:  false,
 		Constant: false,
+		Inferred: false,
 	}
 
 	// Enforces ordering that pub is first
@@ -308,7 +323,6 @@ func (p *Parser) parseFunctionParameters() ([]*ast.Parameter, error) {
 
 		param.Type = builtin
 
-
 		params = append(params, param)
 
 		// After a parameter, we expect either ',' or ')'
@@ -331,44 +345,44 @@ func (p *Parser) parseFunctionParameters() ([]*ast.Parameter, error) {
 }
 
 func (p *Parser) parseReturnTypes() ([]*ast.ReturnType, error) {
-    // Expect and consume the colon
-    if !p.expectPeek(token.COLON) {
-        return nil, fmt.Errorf("expected ':' for return types")
-    }
-    // Move to the first return type identifier
-    p.nextToken()
+	// Expect and consume the colon
+	if !p.expectPeek(token.COLON) {
+		return nil, fmt.Errorf("expected ':' for return types")
+	}
+	// Move to the first return type identifier
+	p.nextToken()
 
-    returnTypes := []*ast.ReturnType{}
+	returnTypes := []*ast.ReturnType{}
 
-    for {
-        if !p.curTokenIs(token.IDENT) {
-            return nil, fmt.Errorf("expected identifier return type, got %v", p.curToken.Type)
-        }
+	for {
+		if !p.curTokenIs(token.IDENT) {
+			return nil, fmt.Errorf("expected identifier return type, got %v", p.curToken.Type)
+		}
 
-        // Read the current identifier as the type
-        typeLiteral := p.curToken.Literal
-        builtin, ok := types.GetBuiltin(typeLiteral)
-        if !ok {
-            return nil, fmt.Errorf("unknown type %s", typeLiteral)
-        }
+		// Read the current identifier as the type
+		typeLiteral := p.curToken.Literal
+		builtin, ok := types.GetBuiltin(typeLiteral)
+		if !ok {
+			return nil, fmt.Errorf("unknown type %s", typeLiteral)
+		}
 
-        rt := &ast.ReturnType{Type: builtin}
-        returnTypes = append(returnTypes, rt)
+		rt := &ast.ReturnType{Type: builtin}
+		returnTypes = append(returnTypes, rt)
 
-        // Check what comes after this type
-        if p.peekTokenIs(token.LBRACE) {
-            // Done – next is the function body's '{'
-            break
-        }
-        if p.peekTokenIs(token.COMMA) {
-            p.nextToken() // consume ','
-            p.nextToken() // move to next type identifier
-            continue
-        }
-        return nil, fmt.Errorf("expected ',' or '{' after return type, got %v", p.peekToken.Type)
-    }
+		// Check what comes after this type
+		if p.peekTokenIs(token.LBRACE) {
+			// Done – next is the function body's '{'
+			break
+		}
+		if p.peekTokenIs(token.COMMA) {
+			p.nextToken() // consume ','
+			p.nextToken() // move to next type identifier
+			continue
+		}
+		return nil, fmt.Errorf("expected ',' or '{' after return type, got %v", p.peekToken.Type)
+	}
 
-    return returnTypes, nil
+	return returnTypes, nil
 }
 
 func (p *Parser) parseCallArguments() []ast.Expression {
@@ -460,10 +474,26 @@ func (p *Parser) parseBlockExpression() *ast.BlockExpression {
 func (p *Parser) parseReturnStatement() *ast.ReturnStatement {
 	stmt := &ast.ReturnStatement{Token: p.curToken}
 	p.nextToken()
-	
-	stmt.ReturnValue = p.parseExpression(LOWEST)
 
-	for !p.curTokenIs(token.SEMICOLON) {
+	returnValues := []ast.Expression{}
+
+	for {
+		expr := p.parseExpression(LOWEST)
+		if expr == nil {
+			return nil
+		}
+
+		returnValues = append(returnValues, expr)
+		if !p.peekTokenIs(token.COMMA) {
+			break
+		}
+		p.nextToken()
+		p.nextToken()
+	}
+
+	stmt.ReturnValues = returnValues
+
+	for !p.curTokenIs(token.SEMICOLON) && !p.curTokenIs(token.EOF) {
 		p.nextToken()
 	}
 

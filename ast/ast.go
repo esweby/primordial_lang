@@ -65,6 +65,7 @@ type DeclareStatement struct {
 	Public   bool
 	Constant bool
 	Type     types.Type
+	Inferred bool
 }
 
 func (dl *DeclareStatement) statementNode() {}
@@ -87,6 +88,11 @@ func (dl *DeclareStatement) String() string {
 	}
 
 	out.WriteString(dl.Name.String())
+
+	if !dl.Inferred {
+		out.WriteString(": ")
+		out.WriteString(dl.Type.Name())
+	}
 	out.WriteString(" := ")
 
 	if dl.Value != nil {
@@ -98,7 +104,8 @@ func (dl *DeclareStatement) String() string {
 	return out.String()
 }
 
-func (dl *DeclareStatement) SetType(t types.Type) {
+func (dl *DeclareStatement) SetInferredType(t types.Type) {
+	dl.Inferred = true
 	dl.Type = t
 }
 
@@ -107,8 +114,8 @@ func (dl *DeclareStatement) GetType() types.Type {
 }
 
 type ReturnStatement struct {
-	Token       token.Token
-	ReturnValue Expression
+	Token        token.Token
+	ReturnValues []Expression
 }
 
 func (rs *ReturnStatement) statementNode() {}
@@ -122,8 +129,13 @@ func (rs *ReturnStatement) String() string {
 
 	out.WriteString(rs.TokenLiteral() + " ")
 
-	if rs.ReturnValue != nil {
-		out.WriteString(rs.ReturnValue.String())
+	for i, rv := range rs.ReturnValues {
+		if rv != nil {
+			out.WriteString(rv.String())
+			if i < len(rs.ReturnValues)-1 {
+				out.WriteString(", ")
+			}
+		}
 	}
 
 	out.WriteString(";")
@@ -343,8 +355,8 @@ func (rt *ReturnType) String() string {
 }
 
 type CallExpression struct {
-	Token token.Token
-	Function Expression
+	Token     token.Token
+	Function  Expression
 	Arguments []Expression
 }
 

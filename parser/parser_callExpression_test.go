@@ -31,7 +31,7 @@ func TestCallExpressionParsing(t *testing.T) {
 		)
 	}
 
-	if !testIdentifier(t, exp, "add") {
+	if !testIdentifier(t, exp.Function, "add") {
 		return
 	}
 
@@ -40,6 +40,6 @@ func TestCallExpressionParsing(t *testing.T) {
 	}
 
 	testLiteralExpression(t, exp.Arguments[0], 2)
-	testLiteralExpression(t, exp.Arguments[0], 3)
-	testLiteralExpression(t, exp.Arguments[0], 4)
+	testLiteralExpression(t, exp.Arguments[1], 3)
+	testLiteralExpression(t, exp.Arguments[2], 4)
 }

@@ -9,14 +9,14 @@ import (
 
 type Analyzer struct {
 	program *ast.Program
-	errors []error
+	errors  []error
 	current *SymbolTable
 }
 
-func New(program *ast.Program) Analyzer {
-	return Analyzer{
+func New(program *ast.Program) *Analyzer {
+	return &Analyzer{
 		program: program,
-		errors: []error{},
+		errors:  []error{},
 		current: NewSymbolTable(),
 	}
 }
@@ -31,65 +31,164 @@ func (a *Analyzer) Analyze() []error {
 
 func (a *Analyzer) checkStatement(stmt ast.Statement) {
 	switch s := stmt.(type) {
-	case *ast.DeclareStatement: {
-		a.analzyzeDeclareStatement(s)
-	}
-	case *ast.ReturnStatement: {
-		expr := s.ReturnValue
-		a.analyzeExpression(expr)
-	}
-	case *ast.ExpressionStatement: {
+	case *ast.DeclareStatement:
+		a.analyzeDeclareStatement(s)
+	case *ast.ReturnStatement:
+		// expr := s.ReturnValues
+		// a.analyzeExpression(expr)
+	case *ast.ExpressionStatement:
 		expr := s.Expression
 		a.analyzeExpression(expr)
-	}
-	case *ast.FunctionStatement: {}
+	case *ast.FunctionStatement:
+		a.analyzeFunctionStatement(s)
 	default:
 		a.error(fmt.Sprintf("evaluateStatement got unexpected statement: %T", stmt))
 	}
 }
 
 func (a *Analyzer) analyzeExpression(exp ast.Expression) types.Type {
+	if exp == nil {
+		a.error("analyzeExpression called with nil expression")
+		return types.InvalidType
+	}
+
 	switch e := exp.(type) {
 	case *ast.IntegerLiteral:
 		return types.Int64Type
 	case *ast.Boolean:
 		return types.BoolType
 	case *ast.Identifier:
-		return types.InvalidType
-	// Evaluating Infix Expressions
-	// Reminder: An InfixExpression is 
+		sym, ok := a.current.Get(e.Value)
+
+		if !ok {
+			a.error("undefined identifier: " + e.Value)
+			return types.InvalidType
+		}
+		t := sym.Type()
+		return t
 	case *ast.InfixExpression:
 		return a.analyzeInfixExpression(e)
 	case *ast.CallExpression:
 		return a.analyzeCallExpression(e)
+	case *ast.IfExpression:
+		return a.analyzeIfExoression(e)
 	}
 
 	a.error(fmt.Sprintf("analyzeExpression: unknown expression type: %T", exp))
 	return types.InvalidType
 }
 
-func (a *Analyzer) analzyzeDeclareStatement(s *ast.DeclareStatement) {
-	isTypeDefined := s.Type != nil 
+func (a *Analyzer) analyzeDeclareStatement(s *ast.DeclareStatement) {
+	isTypeDefined := s.Type != nil
 
 	right := a.analyzeExpression(s.Value)
+	if types.IsInvalid(right) {
+		return
+	}
+
 	if isTypeDefined {
-		left := s.Type
-		if !types.IsTypesEqual(left, right) {
+		if !types.IsTypesEqual(s.Type, right) {
 			a.error(
 				fmt.Sprintf(
-					"analzyzeDeclareStatement: invalid type declaration: %s + %s", 
-					left.Name(), right.Name(),
+					"declaration value type (%s) does not match declared type (%s)",
+					right.Name(), s.Type.Name(),
 				),
 			)
+			return
 		}
 	} else {
-		s.Type = right
+		s.SetInferredType(right)
 	}
+
+	if a.current.ExistsInCurrentScope(s.Name.Value) {
+		a.error(fmt.Sprintf(
+			"variable '%s' already declared in current scope",
+			s.Name.Value,
+		))
+		return
+	}
+
+	a.current.Set(s.Name.Value, &DeclareSymbol{
+		name: s.Name.Value,
+		typ:  s.GetType(),
+		mut:  s.Mutable,
+	})
+}
+
+func (a *Analyzer) analyzeFunctionStatement(stmt *ast.FunctionStatement) {
+	params := make([]BasicSymbol, len(stmt.Parameters))
+	if len(stmt.Parameters) > 0 {
+		for i, p := range stmt.Parameters {
+			sym := BasicSymbol{name: p.Name.Value, typ: p.Type}
+			params[i] = sym
+		}
+	}
+
+	returnTypes := make([]types.Type, len(stmt.ReturnTypes))
+	if len(stmt.ReturnTypes) > 0 {
+		for i, rt := range stmt.ReturnTypes {
+			returnTypes[i] = rt.Type
+		}
+	}
+
+	a.current.Set(stmt.Name.Value, &FunctionSymbol{
+		name:        stmt.Name.Value,
+		typ:         types.FunctionType,
+		params:      params,
+		returnTypes: returnTypes,
+	})
+
+	a.enterScope()
+	for _, p := range stmt.Parameters {
+		a.current.Set(p.Name.Value, &BasicSymbol{name: p.Name.Value, typ: p.Type})
+	}
+
+	bodyStmts := stmt.Body.Statements
+	for _, bodyStmt := range bodyStmts {
+		returnStmt, ok := bodyStmt.(*ast.ReturnStatement)
+		if ok {
+			rtLen := len(stmt.ReturnTypes)
+			rvLen := len(returnStmt.ReturnValues)
+
+			if rtLen == 0 && rvLen > 0 {
+				// log.Printf("rvLen: %+v", returnStmt.ReturnValues)
+				a.error(fmt.Sprintf("unexpected return with values found in function %s", stmt.Name.Value))
+				continue
+			}
+
+			if rvLen == 0 && rtLen > 0 {
+				a.error(fmt.Sprintf("return statement with no values found in function %s", stmt.Name.Value))
+				continue
+			}
+
+			if rtLen != rvLen {
+				a.error(fmt.Sprintf("wrong number of return values: expected %d, got %d", rtLen, rvLen))
+				continue
+			}
+
+			// return types expected comparison
+			for i, retType := range stmt.ReturnTypes {
+				retValue := a.analyzeExpression(returnStmt.ReturnValues[i])
+				if !types.IsTypesEqual(retValue, retType.Type) {
+					a.error(fmt.Sprintf("analyzeFunctionStatement: invalid return type: %s, expected: %s", retValue, retType.Type))
+					continue
+				}
+			}
+		} else {
+			a.checkStatement(bodyStmt)
+		}
+	}
+
+	a.exitScope()
 }
 
 func (a *Analyzer) analyzeInfixExpression(e *ast.InfixExpression) types.Type {
 	left := a.analyzeExpression(e.Left)
 	right := a.analyzeExpression(e.Right)
+
+	if types.IsInvalid(left) || types.IsInvalid(right) {
+		return types.InvalidType
+	}
 
 	switch e.Operator {
 	case "+", "-", "*", "/", "<", ">":
@@ -107,7 +206,7 @@ func (a *Analyzer) analyzeInfixExpression(e *ast.InfixExpression) types.Type {
 			a.error(fmt.Sprintf("analyzeInfixExpression: found invalid type in infixExpression: %s + %s", left.Name(), right.Name()))
 			return types.InvalidType
 		}
-	
+
 		return left
 	case "==", "!=":
 		if types.IsFunction(left) || types.IsString(left) {
@@ -124,7 +223,7 @@ func (a *Analyzer) analyzeInfixExpression(e *ast.InfixExpression) types.Type {
 			a.error(fmt.Sprintf("analyzeInfixExpression: found invalid type in infixExpression: %s + %s", left.Name(), right.Name()))
 			return types.InvalidType
 		}
-	
+
 		return left
 	default:
 		a.error(fmt.Sprintf("analyzeInfixExpression: fallen through to default: %s", e.Operator))
@@ -134,7 +233,7 @@ func (a *Analyzer) analyzeInfixExpression(e *ast.InfixExpression) types.Type {
 }
 
 func (a *Analyzer) analyzeCallExpression(e *ast.CallExpression) types.Type {
-	// lookup symbol table 
+	// lookup symbol table
 
 	// check the functions registered
 
@@ -143,7 +242,10 @@ func (a *Analyzer) analyzeCallExpression(e *ast.CallExpression) types.Type {
 	return types.FunctionType
 }
 
-// func (a *Analyzer) inferType(value *ast.Expression) types.Type {}
+func (a *Analyzer) analyzeIfExoression(e *ast.IfExpression) types.Type {
+
+	return types.InvalidType
+}
 
 func (a *Analyzer) enterScope() {
 	a.current = NewEnclosedSymbolTable(a.current)

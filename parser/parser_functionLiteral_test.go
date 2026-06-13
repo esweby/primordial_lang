@@ -84,9 +84,9 @@ func TestParsingParameters(t *testing.T) {
 		{
 			input: `c := fn(x int32, y int32, z int32) {}`,
 			expected: expectedType{
-				createParameterToken("x",  &types.Int32{}),
-				createParameterToken("y",  &types.Int32{}),
-				createParameterToken("z",  &types.Int32{}),
+				createParameterToken("x", &types.Int32{}),
+				createParameterToken("y", &types.Int32{}),
+				createParameterToken("z", &types.Int32{}),
 			},
 		},
 	}
