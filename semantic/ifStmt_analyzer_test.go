@@ -8,22 +8,18 @@ import (
 	"github.com/esweby/primordial_lang/parser"
 )
 
-type dsTestToken struct {
+type ifTestToken struct {
 	input     string
 	numErrors int
 }
 
-type dsTests []dsTestToken
+type ifTests []dsTestToken
 
-func TestDeclareAnalysis(t *testing.T) {
-	tests := dsTests{
-		{`brian := 1;`, 0},
-		{`brian := 1; brian := 1`, 1},
-		{`brian: int32 := true; `, 1},
-		{`brian := if(2 > 1) { 1 + 2; } else { 1 - 0 }`, 0},
-		{`brian := if(2) { 1 + 2 } else { 1 - 0 }`, 1},
-		{`brian := if(2 > 1) { return 1 + 2; } else { 1 - 0 }`, 1},
-		{`brian := if(2 > 1) { 1; } else { true; }`, 1},
+func TestIfStatementAnalysis(t *testing.T) {
+	tests := ifTests{
+		{`if(1 > 2) { 1; 2; 3; };`, 0},
+		{`if(x > y) { 1; 2; 3; };`, 3},
+		{`x := 1; y := 2; if(1 > 2) { 1; 2; 3; };`, 0},
 	}
 
 	for i, test := range tests {

@@ -8,16 +8,19 @@ import (
 )
 
 type Analyzer struct {
-	program *ast.Program
-	errors  []error
-	current *SymbolTable
+	program       *ast.Program
+	errors        []error
+	current       *SymbolTable
+	requireReturn bool
+	returnTypes   []types.Type
 }
 
 func New(program *ast.Program) *Analyzer {
 	return &Analyzer{
-		program: program,
-		errors:  []error{},
-		current: NewSymbolTable(),
+		program:       program,
+		errors:        []error{},
+		current:       NewSymbolTable(),
+		requireReturn: false,
 	}
 }
 
@@ -33,9 +36,6 @@ func (a *Analyzer) checkStatement(stmt ast.Statement) {
 	switch s := stmt.(type) {
 	case *ast.DeclareStatement:
 		a.analyzeDeclareStatement(s)
-	case *ast.ReturnStatement:
-		// expr := s.ReturnValues
-		// a.analyzeExpression(expr)
 	case *ast.ExpressionStatement:
 		expr := s.Expression
 		a.analyzeExpression(expr)
@@ -71,7 +71,7 @@ func (a *Analyzer) analyzeExpression(exp ast.Expression) types.Type {
 	case *ast.CallExpression:
 		return a.analyzeCallExpression(e)
 	case *ast.IfExpression:
-		return a.analyzeIfExoression(e)
+		return a.analyzeIfStatement(e)
 	}
 
 	a.error(fmt.Sprintf("analyzeExpression: unknown expression type: %T", exp))
@@ -81,7 +81,14 @@ func (a *Analyzer) analyzeExpression(exp ast.Expression) types.Type {
 func (a *Analyzer) analyzeDeclareStatement(s *ast.DeclareStatement) {
 	isTypeDefined := s.Type != nil
 
-	right := a.analyzeExpression(s.Value)
+	var right types.Type
+	switch rs := s.Value.(type) {
+	case *ast.IfExpression:
+		right = a.analyzeIfExpressionWithValue(rs)
+	default:
+		right = a.analyzeExpression(rs)
+	}
+
 	if types.IsInvalid(right) {
 		return
 	}
@@ -191,7 +198,7 @@ func (a *Analyzer) analyzeInfixExpression(e *ast.InfixExpression) types.Type {
 	}
 
 	switch e.Operator {
-	case "+", "-", "*", "/", "<", ">":
+	case "+", "-", "*", "/":
 		if types.IsBoolean(left) || types.IsFunction(left) || types.IsString(left) {
 			a.error(fmt.Sprintf("analyzeInfixExpression: left infixExpression is invalid type: %s", left.Name()))
 			return types.InvalidType
@@ -208,7 +215,7 @@ func (a *Analyzer) analyzeInfixExpression(e *ast.InfixExpression) types.Type {
 		}
 
 		return left
-	case "==", "!=":
+	case "<", ">", "==", "!=":
 		if types.IsFunction(left) || types.IsString(left) {
 			a.error(fmt.Sprintf("analyzeInfixExpression: left infixExpression is invalid type: %s", left.Name()))
 			return types.InvalidType
@@ -224,7 +231,7 @@ func (a *Analyzer) analyzeInfixExpression(e *ast.InfixExpression) types.Type {
 			return types.InvalidType
 		}
 
-		return left
+		return types.BoolType
 	default:
 		a.error(fmt.Sprintf("analyzeInfixExpression: fallen through to default: %s", e.Operator))
 		return types.InvalidType
@@ -242,9 +249,141 @@ func (a *Analyzer) analyzeCallExpression(e *ast.CallExpression) types.Type {
 	return types.FunctionType
 }
 
-func (a *Analyzer) analyzeIfExoression(e *ast.IfExpression) types.Type {
+func (a *Analyzer) analyzeIfStatement(e *ast.IfExpression) types.Type {
+    cond := a.analyzeExpression(e.Condition)
+    if !types.IsBoolean(cond) {
+        a.error("if condition must be boolean")
+        return types.InvalidType
+    }
 
-	return types.InvalidType
+    a.enterScope()
+    for _, stmt := range e.Body.Statements {
+        a.checkStatement(stmt)
+    }
+    a.exitScope()
+
+    if e.Else != nil {
+        switch s := e.Else.(type) {
+        case *ast.IfExpression:
+            a.analyzeIfStatement(s)
+        case *ast.BlockExpression:
+            a.enterScope()
+            for _, stmt := range s.Statements {
+                a.checkStatement(stmt)
+            }
+            a.exitScope()
+        default:
+            a.error("unexpected else structure")
+        }
+    }
+
+    return types.InvalidType
+}
+
+func (a *Analyzer) analyzeIfExpressionWithValue(e *ast.IfExpression) types.Type {
+	var gatherTypes func(ifst *ast.IfExpression) []types.Type
+	
+	gatherTypes = func(ifst *ast.IfExpression) []types.Type {
+		returnTypes := []types.Type{}
+
+		if !a.isIfConditionBoolean(ifst) {
+			returnTypes = append(returnTypes, types.InvalidType)
+			return returnTypes
+		}
+
+		block := ifst.Body
+		if len(block.Statements) == 0 {
+			a.error("if expression body cannot be empty when used as a value")
+			return []types.Type{types.InvalidType}
+		}
+
+		a.enterScope()
+		for i, stmt := range block.Statements {
+			switch s := stmt.(type) {
+			case *ast.ExpressionStatement:
+				t := a.analyzeExpression(s.Expression)
+				if i == len(block.Statements) - 1 {
+					returnTypes = append(returnTypes, t)
+				}
+			default:
+				if i == len(block.Statements) - 1 {
+					a.error(fmt.Sprintf("last statement of if is not an expression. Got=%T", s))
+					returnTypes = append(returnTypes, types.InvalidType)
+					a.exitScope()
+					return returnTypes
+				}
+
+				a.checkStatement(s)
+			}
+		}
+
+		a.exitScope()
+
+		if ifst.Else != nil {
+			switch s := ifst.Else.(type) {
+			case *ast.IfExpression:
+				secondaryReturnTypes := gatherTypes(s)
+				for _, srt := range secondaryReturnTypes {
+					returnTypes = append(returnTypes, srt)
+				}
+			case *ast.BlockExpression:
+				a.enterScope()
+				defer a.exitScope()
+				stmts := s.Statements
+				if len(stmts) == 0 {
+					a.error("else block cannot be empty when if is used as value")
+					return append(returnTypes, types.InvalidType)
+				}
+				lastStmt := stmts[len(stmts)-1]
+				expStmt, ok := lastStmt.(*ast.ExpressionStatement)
+				if !ok {
+					a.error("last statement in else must be an expression")
+					return append(returnTypes, types.InvalidType)
+				}
+				rt := a.analyzeExpression(expStmt.Expression)
+				returnTypes = append(returnTypes, rt)
+			default:
+				a.error("unexpected else structure")
+				returnTypes = append(returnTypes, types.InvalidType)
+			}
+		}
+
+
+		return returnTypes
+	}
+
+	typesFound := gatherTypes(e)
+	if len(typesFound) == 0 {
+		a.error("expected If expression to return type, found no evaluated type expression")
+		return types.InvalidType
+	}
+
+	var lastType types.Type 
+	for _, t := range typesFound {
+		if lastType == nil { 
+			lastType = t
+		} else {
+			if types.IsInvalid(t) {
+				a.error("Invalid type found in if else expressions")
+				return types.InvalidType
+			} else if !types.IsTypesEqual(lastType, t) {
+				a.error(fmt.Sprintf("types from each if else expressions do not match got=%T and %T", lastType.Name(), t.Name()))
+				return types.InvalidType
+			}
+		}
+	}
+
+	return lastType
+}
+
+func (a *Analyzer) isIfConditionBoolean(ifSt *ast.IfExpression) bool {
+	t := a.analyzeExpression(ifSt.Condition)
+	isBool := types.IsBoolean(t)
+	if !isBool {
+		a.error(fmt.Sprintf("if condition must evaluate to boolean. Got=%s", t.Name()))
+	}
+
+	return isBool
 }
 
 func (a *Analyzer) enterScope() {
