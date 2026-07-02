@@ -14,6 +14,8 @@ var Float32Type = &Float32{}
 var Float64Type = &Float64{}
 var StringType = &String{}
 var FunctionType = &Function{}
+var TupleType = &Tuple{}
+var VoidType = &Void{}
 
 var builtins = map[string]Type{
 	"invalid":  InvalidType,
@@ -30,6 +32,7 @@ var builtins = map[string]Type{
 	"float64":  Float64Type,
 	"string":   StringType,
 	"function": FunctionType,
+	"void": VoidType,
 }
 
 func GetBuiltin(typeName string) (Type, bool) {
@@ -80,4 +83,38 @@ func IsArray(t Type) bool {
 
 func IsFunction(t Type) bool {
 	return t.Kind() == KindFunction
+}
+
+func GetFunctionSignature(t Type) ([]Type, []Type, bool) {
+	if f, ok := t.(*Function); ok {
+		return f.ParamTypes, f.ReturnTypes, true
+	}
+
+	return nil, nil, false
+}
+
+func IsTuple(t Type) bool {
+	return t.Kind() == KindTuple
+}
+
+func IsVoid(t Type) bool {
+	return t.Kind() == KindVoid
+}
+
+func IsAssignable(to, from Type) bool {
+	if to == nil || from == nil {
+		return false
+	}
+	if IsInteger(to) && IsInteger(from) {
+		return true
+	}
+	return IsTypesEqual(to, from)
+}
+
+func UnwrapTuple(t Type) ([]Type, bool) {
+	if tup, ok := t.(*Tuple); ok {
+		return tup.Types, true
+	}
+
+	return nil, false
 }

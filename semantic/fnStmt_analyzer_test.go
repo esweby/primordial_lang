@@ -8,15 +8,8 @@ import (
 	"github.com/esweby/primordial_lang/parser"
 )
 
-type fnTestToken struct {
-	input     string
-	numErrors int
-}
-
-type fnTests []fnTestToken
-
 func TestFunctionAnalysis(t *testing.T) {
-	tests := fnTests{
+	tests := Tests{
 		{`fn add() {}`, 0},
 		{`fn add(x int32, y int32): int32 { return x + y; }`, 0},
 		{`fn add(x int32, y int32): int32 { return x + true; }`, 2},
@@ -30,7 +23,7 @@ func TestFunctionAnalysis(t *testing.T) {
 		p := parser.New(l)
 		program := p.ParseProgram()
 
-		a := New(program)
+		a := NewSemanticAnalyzer(program)
 		errors := a.Analyze()
 
 		if len(errors) != test.numErrors {

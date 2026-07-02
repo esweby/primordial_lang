@@ -1,6 +1,9 @@
 package semantic
 
-import "github.com/esweby/primordial_lang/types"
+import (
+	"github.com/esweby/primordial_lang/ast"
+	"github.com/esweby/primordial_lang/types"
+)
 
 type Symbol interface {
 	Name() string
@@ -41,7 +44,7 @@ func (ds *DeclareSymbol) Mutable() bool {
 type FunctionSymbol struct {
 	name        string
 	typ         types.Type
-	params      []BasicSymbol
+	params      []*ast.Parameter
 	returnTypes []types.Type
 }
 
@@ -53,7 +56,7 @@ func (fs *FunctionSymbol) Type() types.Type {
 	return fs.typ
 }
 
-func (fs *FunctionSymbol) Params() []BasicSymbol {
+func (fs *FunctionSymbol) Params() []*ast.Parameter {
 	return fs.params
 }
 

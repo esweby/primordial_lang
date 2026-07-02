@@ -1,15 +1,22 @@
 package types
 
+import (
+	"bytes"
+	"strings"
+)
+
 type Kind int
 
 const (
 	KindInvalid Kind = iota
+	KindVoid
 	KindInteger
 	KindFloat
 	KindString
 	KindBoolean
 	KindArray
 	KindFunction
+	KindTuple
 )
 
 type Type interface {
@@ -23,6 +30,12 @@ type Invalid struct{}
 func (inv *Invalid) Name() string { return "invalid" }
 func (inv *Invalid) Size() int    { return 0 }
 func (inv *Invalid) Kind() Kind   { return KindInvalid }
+
+type Void struct{}
+
+func (v *Void) Name() string { return "void" }
+func (v *Void) Size() int    { return 0 }
+func (v *Void) Kind() Kind   { return KindVoid }
 
 type Bool struct{}
 
@@ -96,11 +109,61 @@ func (s *String) Name() string { return "string" }
 func (s *String) Size() int    { return 16 }
 func (s *String) Kind() Kind   { return KindString }
 
-type Function struct{}
+type Function struct{
+	ParamTypes []Type
+	ReturnTypes []Type
+}
 
-func (fn *Function) Name() string { return "function" }
+func (fn *Function) Name() string { 
+	var out bytes.Buffer
+
+	out.WriteString("fn(")
+	params := []string{}
+	for _, p := range fn.ParamTypes {
+		params = append(params, p.Name())
+	}
+	out.WriteString(strings.Join(params, ", "))
+	out.WriteString("): ")
+
+	if len(fn.ReturnTypes) > 0 {
+		rt := []string{}
+		for _, r := range fn.ReturnTypes {
+			rt = append(rt, r.Name())
+		}
+		out.WriteString(strings.Join(rt, ", "))
+	} else {
+		out.WriteString("void")
+	}
+
+
+	return out.String()
+}
 func (fn *Function) Size() int    { return 16 }
 func (fn *Function) Kind() Kind   { return KindFunction }
+func  NewFunction(paramTypes, returnTypes []Type) *Function {
+	return &Function{ ParamTypes: paramTypes, ReturnTypes: returnTypes }
+}
+
+type Tuple struct {
+	Types []Type
+}
+
+func (t *Tuple) Name() string {
+	names := make([]string, len(t.Types))
+	for i, typ := range t.Types {
+		names[i] = typ.Name()
+	}
+
+	return "(" + strings.Join(names, ", ") + ")"
+}
+
+func (t *Tuple) Size() int {
+	return 0
+}
+
+func (t *Tuple) Kind() Kind {
+	return KindTuple
+}
 
 type Named struct {
 	CustomName string

@@ -8,15 +8,8 @@ import (
 	"github.com/esweby/primordial_lang/parser"
 )
 
-type dsTestToken struct {
-	input     string
-	numErrors int
-}
-
-type dsTests []dsTestToken
-
 func TestDeclareAnalysis(t *testing.T) {
-	tests := dsTests{
+	tests := Tests{
 		{`brian := 1;`, 0},
 		{`brian := 1; brian := 1`, 1},
 		{`brian: int32 := true; `, 1},
@@ -31,7 +24,7 @@ func TestDeclareAnalysis(t *testing.T) {
 		p := parser.New(l)
 		program := p.ParseProgram()
 
-		a := New(program)
+		a := NewSemanticAnalyzer(program)
 		errors := a.Analyze()
 
 		if len(errors) != test.numErrors {
@@ -42,3 +35,25 @@ func TestDeclareAnalysis(t *testing.T) {
 		}
 	}
 }
+
+// func TestAssignmentAnalysis(t *testing.T) {
+// 	tests := Tests{
+// 		{`brian := 1; brian = 2`, 0},
+// 	}
+
+// 	for i, test := range tests {
+// 		l := lexer.New(test.input)
+// 		p := parser.New(l)
+// 		program := p.ParseProgram()
+
+// 		a := NewSemanticAnalyzer(program)
+// 		errors := a.Analyze()
+
+// 		if len(errors) != test.numErrors {
+// 			for _, msg := range errors {
+// 				log.Printf("%s", msg)
+// 			}
+// 			t.Fatalf("test %d errors contain %d errors. expected=%d", i, len(errors), test.numErrors)
+// 		}
+// 	}
+// }

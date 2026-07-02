@@ -2,6 +2,7 @@ package ast
 
 import (
 	"bytes"
+	"fmt"
 	"strings"
 
 	"github.com/esweby/primordial_lang/token"
@@ -111,6 +112,23 @@ func (dl *DeclareStatement) SetInferredType(t types.Type) {
 
 func (dl *DeclareStatement) GetType() types.Type {
 	return dl.Type
+}
+
+type AssignStatement struct {
+	Token token.Token
+	Name     *Identifier
+	Value    Expression
+}
+
+func (as *AssignStatement) statementNode() {}
+
+func (as *AssignStatement) TokenLiteral() string {
+	return as.Token.Literal
+}
+
+func (as *AssignStatement) String() string {
+	return fmt.Sprintf("%s = %s", as.Name.String(), as.Value.String())
+	
 }
 
 type ReturnStatement struct {
