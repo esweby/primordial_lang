@@ -623,10 +623,19 @@ func (sa *SemanticAnalyzer) analyzeCallExpression(ce *ast.CallExpression) types.
 		return types.InvalidType
 	}
 
-	fs, ok := sym.(*FunctionSymbol)
-	if !ok {
-		sa.error(fmt.Sprintf("symbol '%s' is not a function", ident.Value))
-		return types.InvalidType
+	fs, isNamedFunction := sym.(*FunctionSymbol)
+	if !isNamedFunction {
+		if !types.IsFunction(sym.Type()) {
+			sa.error(fmt.Sprintf("symbol '%s' is not a function", ident.Value))
+			return types.InvalidType
+		}
+
+		// A `function` value is callable, but its signature is currently unknown.
+		for _, arg := range ce.Arguments {
+			sa.analyzeExpression(arg)
+		}
+
+		return types.FunctionType
 	}
 
 	// Check argument count.
