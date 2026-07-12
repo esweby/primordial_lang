@@ -13,7 +13,6 @@ type BlockResult struct {
 	Returns bool       // true if the block unconditionally returns
 }
 
-
 // SemanticAnalyzer performs type checking and symbol resolution.
 type SemanticAnalyzer struct {
 	program        *ast.Program
@@ -24,11 +23,11 @@ type SemanticAnalyzer struct {
 }
 
 // NewSemanticAnalyzer creates a new analyzer.
-func NewSemanticAnalyzer(program *ast.Program) *SemanticAnalyzer {
+func NewSemanticAnalyzer(program *ast.Program, symbols *SymbolTable) *SemanticAnalyzer {
 	return &SemanticAnalyzer{
 		program:        program,
 		errors:         []error{},
-		current:        NewSymbolTable(),
+		current:        symbols,
 		requiresReturn: false,
 	}
 }
@@ -56,32 +55,127 @@ func (sa *SemanticAnalyzer) Analyze() []error {
 // or nil otherwise. It also handles control‑flow (e.g., return statements) via the
 // returned BlockResult when called from analyzeBlock.
 func (sa *SemanticAnalyzer) analyzeStatement(stmt ast.Statement) types.Type {
-    switch s := stmt.(type) {
-    case *ast.ExpressionStatement:
-        // If the expression is an if expression, analyze it as a statement (no value expected).
-        if ifExpr, ok := s.Expression.(*ast.IfExpression); ok {
-            return sa.analyzeIfExpression(ifExpr, false)
-        }
-        return sa.analyzeExpression(s.Expression)
+	switch s := stmt.(type) {
+	case *ast.ExpressionStatement:
+		// If the expression is an if expression, analyze it as a statement (no value expected).
+		if ifExpr, ok := s.Expression.(*ast.IfExpression); ok {
+			return sa.analyzeIfExpression(ifExpr, false)
+		}
+		return sa.analyzeExpression(s.Expression)
 
-    case *ast.DeclareStatement:
-        return sa.analyzeDeclareStatement(s)
+	case *ast.DeclareStatement:
+		return sa.analyzeDeclareStatement(s)
 
-    case *ast.FunctionStatement:
-        sa.analyzeFunctionStatement(s)
-        return nil
+	case *ast.TupleDeclareStatement:
+		return sa.analyzeTupleDeclareStatement(s)
 
-    case *ast.ReturnStatement:
-        sa.analyzeReturnStatement(s)
-        return nil
+	case *ast.FunctionStatement:
+		sa.analyzeFunctionStatement(s)
+		return nil
 
-    case *ast.AssignStatement:
-        return sa.analyzeAssignmentStatement(s)
+	case *ast.ReturnStatement:
+		sa.analyzeReturnStatement(s)
+		return nil
 
-    default:
-        sa.error(fmt.Sprintf("analyzeStatement received unexpected statement: %T", stmt))
-        return nil
-    }
+	case *ast.AssignStatement:
+		return sa.analyzeAssignmentStatement(s)
+
+	case *ast.TupleAssignStatement:
+		return sa.analyzeTupleAssignmentStatement(s)
+
+	default:
+		sa.error(fmt.Sprintf("analyzeStatement received unexpected statement: %T", stmt))
+		return nil
+	}
+}
+
+func (sa *SemanticAnalyzer) analyzeTupleDeclareStatement(stmt *ast.TupleDeclareStatement) types.Type {
+	rhsType := sa.analyzeExpression(stmt.Value)
+	elementTypes, ok := types.UnwrapTuple(rhsType)
+	if !ok {
+		sa.error(fmt.Sprintf("tuple declaration requires a tuple value, got %s", rhsType.Name()))
+		return types.InvalidType
+	}
+
+	if len(stmt.Names) != len(elementTypes) {
+		sa.error(fmt.Sprintf("tuple declaration arity mismatch: expected %d names, got %d",
+			len(elementTypes), len(stmt.Names)))
+		return types.InvalidType
+	}
+
+	seen := make(map[string]struct{})
+	for _, name := range stmt.Names {
+		if name.Value == "_" {
+			continue
+		}
+		if _, duplicate := seen[name.Value]; duplicate {
+			sa.error(fmt.Sprintf("variable '%s' appears more than once in tuple declaration", name.Value))
+			return types.InvalidType
+		}
+		seen[name.Value] = struct{}{}
+
+		if sa.current.ExistsInCurrentScope(name.Value) {
+			sa.error(fmt.Sprintf("variable '%s' already declared in this scope", name.Value))
+			return types.InvalidType
+		}
+	}
+
+	for i, name := range stmt.Names {
+		if name.Value == "_" {
+			continue
+		}
+		sa.current.Set(name.Value, &DeclareSymbol{
+			name: name.Value,
+			typ:  elementTypes[i],
+			mut:  false,
+		})
+	}
+
+	return rhsType
+}
+
+func (sa *SemanticAnalyzer) analyzeTupleAssignmentStatement(stmt *ast.TupleAssignStatement) types.Type {
+	rhsType := sa.analyzeExpression(stmt.Value)
+	elementTypes, ok := types.UnwrapTuple(rhsType)
+	if !ok {
+		sa.error(fmt.Sprintf("tuple assignment requires a tuple value, got %s", rhsType.Name()))
+		return types.InvalidType
+	}
+
+	if len(stmt.Names) != len(elementTypes) {
+		sa.error(fmt.Sprintf("tuple assignment arity mismatch: expected %d names, got %d",
+			len(elementTypes), len(stmt.Names)))
+		return types.InvalidType
+	}
+
+	for i, name := range stmt.Names {
+		if name.Value == "_" {
+			continue
+		}
+
+		sym, found := sa.current.Get(name.Value)
+		if !found {
+			sa.error(fmt.Sprintf("undefined variable: %s", name.Value))
+			return types.InvalidType
+		}
+
+		decl, isVariable := sym.(*DeclareSymbol)
+		if !isVariable {
+			sa.error(fmt.Sprintf("cannot assign to non-variable: %s", name.Value))
+			return types.InvalidType
+		}
+		if !decl.Mutable() {
+			sa.error(fmt.Sprintf("cannot assign to immutable variable: %s", name.Value))
+			return types.InvalidType
+		}
+		if !types.IsAssignable(decl.Type(), elementTypes[i]) {
+			sa.error(fmt.Sprintf("tuple assignment value %d: expected %s, got %s",
+				i, decl.Type().Name(), elementTypes[i].Name()))
+			return types.InvalidType
+		}
+	}
+
+	return rhsType
 }
 
 // analyzeBlock analyzes a block of statements and returns the BlockResult.
@@ -120,51 +214,51 @@ func (sa *SemanticAnalyzer) analyzeBlock(block *ast.BlockExpression) BlockResult
 
 // analyzeDeclareStatement checks a variable declaration.
 func (sa *SemanticAnalyzer) analyzeDeclareStatement(stmt *ast.DeclareStatement) types.Type {
-    // Check redefinition
-    if sa.current.ExistsInCurrentScope(stmt.Name.Value) {
-        sa.error(fmt.Sprintf("variable '%s' already declared in this scope", stmt.Name.Value))
-        return types.InvalidType
-    }
+	// Check redefinition
+	if sa.current.ExistsInCurrentScope(stmt.Name.Value) {
+		sa.error(fmt.Sprintf("variable '%s' already declared in this scope", stmt.Name.Value))
+		return types.InvalidType
+	}
 
-    // Handle function literal assignment
-    if _, ok := stmt.Value.(*ast.FunctionLiteral); ok {
-        fnType := sa.analyzeFunctionLiteral(stmt) // analyzes body and registers symbol
+	// Handle function literal assignment
+	if _, ok := stmt.Value.(*ast.FunctionLiteral); ok {
+		fnType := sa.analyzeFunctionLiteral(stmt) // analyzes body and registers symbol
 
-        // If there is an explicit type annotation, it must be a function type.
-        if stmt.Type != nil {
-            if !types.IsFunction(stmt.Type) {
-                sa.error(fmt.Sprintf("declaration type mismatch: expected %s, got function",
-                    stmt.Type.Name()))
-                return types.InvalidType
-            }
-            // If annotation is `function`, we accept it.
-        } else {
-            // No annotation: infer as function type.
-            stmt.SetInferredType(fnType)
-        }
-        return fnType
-    }
+		// If there is an explicit type annotation, it must be a function type.
+		if stmt.Type != nil {
+			if !types.IsFunction(stmt.Type) {
+				sa.error(fmt.Sprintf("declaration type mismatch: expected %s, got function",
+					stmt.Type.Name()))
+				return types.InvalidType
+			}
+			// If annotation is `function`, we accept it.
+		} else {
+			// No annotation: infer as function type.
+			stmt.SetInferredType(fnType)
+		}
+		return fnType
+	}
 
-    // Normal (non‑function) value analysis (existing code)
-    rhsType := sa.analyzeExpression(stmt.Value)
-    if types.IsInvalid(rhsType) {
-        return types.InvalidType
-    }
+	// Normal (non‑function) value analysis (existing code)
+	rhsType := sa.analyzeExpression(stmt.Value)
+	if types.IsInvalid(rhsType) {
+		return types.InvalidType
+	}
 
-    if stmt.Type != nil && !types.IsAssignable(stmt.Type, rhsType) {
-        sa.error(fmt.Sprintf("declaration type mismatch: expected %s, got %s",
-            stmt.Type.Name(), rhsType.Name()))
-        return types.InvalidType
-    }
-    if stmt.Type == nil {
-        stmt.SetInferredType(rhsType)
-    }
-    sa.current.Set(stmt.Name.Value, &DeclareSymbol{
-        name: stmt.Name.Value,
-        typ:  stmt.GetType(),
-        mut:  stmt.Mutable,
-    })
-    return stmt.GetType()
+	if stmt.Type != nil && !types.IsAssignable(stmt.Type, rhsType) {
+		sa.error(fmt.Sprintf("declaration type mismatch: expected %s, got %s",
+			stmt.Type.Name(), rhsType.Name()))
+		return types.InvalidType
+	}
+	if stmt.Type == nil {
+		stmt.SetInferredType(rhsType)
+	}
+	sa.current.Set(stmt.Name.Value, &DeclareSymbol{
+		name: stmt.Name.Value,
+		typ:  stmt.GetType(),
+		mut:  stmt.Mutable,
+	})
+	return stmt.GetType()
 }
 
 // analyzeFunctionStatement analyzes a function statement (e.g., fn add() { ... }).
@@ -224,45 +318,45 @@ func (sa *SemanticAnalyzer) analyzeFunctionStatement(stmt *ast.FunctionStatement
 // analyzeFunctionLiteral analyzes a function literal assigned to a variable.
 // It registers the function in the symbol table as a FunctionSymbol.
 func (sa *SemanticAnalyzer) analyzeFunctionLiteral(ds *ast.DeclareStatement) types.Type {
-    fnLit, ok := ds.Value.(*ast.FunctionLiteral)
-    if !ok {
-        sa.error("analyzeFunctionLiteral called with non-function value")
-        return types.InvalidType
-    }
+	fnLit, ok := ds.Value.(*ast.FunctionLiteral)
+	if !ok {
+		sa.error("analyzeFunctionLiteral called with non-function value")
+		return types.InvalidType
+	}
 
-    // Build parameter symbols and return types
-    params := make([]*ast.Parameter, len(fnLit.Parameters))
-    copy(params, fnLit.Parameters)
+	// Build parameter symbols and return types
+	params := make([]*ast.Parameter, len(fnLit.Parameters))
+	copy(params, fnLit.Parameters)
 
-    returnTypes := make([]types.Type, len(fnLit.ReturnTypes))
-    for i, rt := range fnLit.ReturnTypes {
-        returnTypes[i] = rt.Type
-    }
+	returnTypes := make([]types.Type, len(fnLit.ReturnTypes))
+	for i, rt := range fnLit.ReturnTypes {
+		returnTypes[i] = rt.Type
+	}
 
-    // Register the function symbol in the current scope
-    sa.current.Set(ds.Name.Value, &FunctionSymbol{
-        name:        ds.Name.Value,
-        typ:         types.FunctionType,
-        params:      params,
-        returnTypes: returnTypes,
-    })
+	// Register the function symbol in the current scope
+	sa.current.Set(ds.Name.Value, &FunctionSymbol{
+		name:        ds.Name.Value,
+		typ:         types.FunctionType,
+		params:      params,
+		returnTypes: returnTypes,
+	})
 
-    // Enter function scope, add parameters
-    sa.enterScope()
-    for _, p := range fnLit.Parameters {
-        sa.current.Set(p.Name.Value, &BasicSymbol{name: p.Name.Value, typ: p.Type})
-    }
+	// Enter function scope, add parameters
+	sa.enterScope()
+	for _, p := range fnLit.Parameters {
+		sa.current.Set(p.Name.Value, &BasicSymbol{name: p.Name.Value, typ: p.Type})
+	}
 
 	sa.returnTypes = returnTypes
 
-    for _, stmt := range fnLit.Body.Statements {
-        sa.analyzeStatement(stmt)
-    }
+	for _, stmt := range fnLit.Body.Statements {
+		sa.analyzeStatement(stmt)
+	}
 
-    // Reset and exit
-    sa.returnTypes = nil
-    sa.exitScope()
-    return types.FunctionType
+	// Reset and exit
+	sa.returnTypes = nil
+	sa.exitScope()
+	return types.FunctionType
 }
 
 // analyzeReturnStatement checks a return statement against the current function context.
@@ -534,10 +628,9 @@ func (sa *SemanticAnalyzer) analyzeCallExpression(ce *ast.CallExpression) types.
 	case 1:
 		return fs.returnTypes[0]
 	default:
-		// We don't have a Tuple type defined in types, but you can add it.
-		// For now, return the first type as a placeholder, or error.
-		sa.error("multiple return values not yet supported by the type system")
-		return types.InvalidType
+		return &types.Tuple{
+			Types: fs.returnTypes,
+		}
 	}
 }
 

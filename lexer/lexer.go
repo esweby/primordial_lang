@@ -3,12 +3,12 @@ package lexer
 import "github.com/esweby/primordial_lang/token"
 
 type Lexer struct {
-	input         string
-	position      int
+	input        string
+	position     int
 	readPosition int
-	ch            byte
-	line          int
-	column        int
+	ch           byte
+	line         int
+	column       int
 }
 
 func New(input string) *Lexer {
@@ -99,7 +99,7 @@ func (l *Lexer) NextToken() token.Token {
 		tok.Literal = ""
 		tok.Type = token.EOF
 	default:
-		if isLetter(l.ch) && l.ch != '_' {
+		if isLetter(l.ch) {
 			tok.Literal = l.readIdentifier()
 			tok.Type = token.LookupIdent(tok.Literal)
 			return tok

@@ -112,6 +112,10 @@ func (p *Parser) parseStatement() ast.Statement {
 			return stmt
 		}
 
+		if p.peekTokenIs(token.ASSIGN) {
+			return p.parseAssignStatement()
+		}
+
 		return p.parseExpressionStatement()
 	case token.RETURN:
 		stmt := p.parseReturnStatement()
@@ -124,6 +128,23 @@ func (p *Parser) parseStatement() ast.Statement {
 	default:
 		return p.parseExpressionStatement()
 	}
+}
+
+func (p *Parser) parseAssignStatement() *ast.AssignStatement {
+	stmt := &ast.AssignStatement{
+		Name: &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal},
+	}
+
+	p.nextToken()
+	stmt.Token = p.curToken
+	p.nextToken()
+	stmt.Value = p.parseExpression(LOWEST)
+
+	if p.peekTokenIs(token.SEMICOLON) {
+		p.nextToken()
+	}
+
+	return stmt
 }
 
 func (p *Parser) noPrefixParseFnError(t token.TokenType) {
@@ -501,9 +522,31 @@ func (p *Parser) parseReturnStatement() *ast.ReturnStatement {
 }
 
 // EXPRESSIONS
-func (p *Parser) parseExpressionStatement() *ast.ExpressionStatement {
+func (p *Parser) parseExpressionStatement() ast.Statement {
 	stmt := &ast.ExpressionStatement{Token: p.curToken}
 	stmt.Expression = p.parseExpression(LOWEST)
+
+	if target, ok := stmt.Expression.(*ast.TupleTargetExpression); ok &&
+		(p.peekTokenIs(token.DECLARE) || p.peekTokenIs(token.ASSIGN)) {
+		p.nextToken()
+		operator := p.curToken
+		p.nextToken()
+		value := p.parseExpression(LOWEST)
+
+		if p.peekTokenIs(token.SEMICOLON) {
+			p.nextToken()
+		}
+
+		if operator.Type == token.DECLARE {
+			return &ast.TupleDeclareStatement{Token: operator, Names: target.Names, Value: value}
+		}
+		return &ast.TupleAssignStatement{Token: operator, Names: target.Names, Value: value}
+	}
+
+	if _, ok := stmt.Expression.(*ast.TupleTargetExpression); ok {
+		p.errors = append(p.errors, "tuple target must be followed by ':=' or '='")
+		return nil
+	}
 
 	if p.peekTokenIs(token.SEMICOLON) {
 		p.nextToken()
@@ -537,8 +580,35 @@ func (p *Parser) parseExpression(precedence int) ast.Expression {
 }
 
 func (p *Parser) parseGroupedExpression() ast.Expression {
+	openToken := p.curToken
 	p.nextToken()
 	exp := p.parseExpression(LOWEST)
+
+	if p.peekTokenIs(token.COMMA) {
+		names := []*ast.Identifier{}
+		first, ok := exp.(*ast.Identifier)
+		if !ok {
+			p.errors = append(p.errors, "tuple assignment target must contain only identifiers")
+			return nil
+		}
+		names = append(names, first)
+
+		for p.peekTokenIs(token.COMMA) {
+			p.nextToken()
+			p.nextToken()
+			name, ok := p.parseIdentifier().(*ast.Identifier)
+			if !ok || !p.curTokenIs(token.IDENT) {
+				p.errors = append(p.errors, "tuple assignment target must contain only identifiers")
+				return nil
+			}
+			names = append(names, name)
+		}
+
+		if !p.expectPeek(token.RPAREN) {
+			return nil
+		}
+		return &ast.TupleTargetExpression{Token: openToken, Names: names}
+	}
 
 	if !p.expectPeek(token.RPAREN) {
 		return nil

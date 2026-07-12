@@ -58,6 +58,27 @@ func (i *Identifier) TokenLiteral() string {
 
 func (i *Identifier) String() string { return i.Value }
 
+// TupleTargetExpression is the parenthesized identifier list used on the
+// left-hand side of tuple declarations and assignments.
+type TupleTargetExpression struct {
+	Token token.Token
+	Names []*Identifier
+}
+
+func (tte *TupleTargetExpression) expressionNode() {}
+
+func (tte *TupleTargetExpression) TokenLiteral() string {
+	return tte.Token.Literal
+}
+
+func (tte *TupleTargetExpression) String() string {
+	names := make([]string, 0, len(tte.Names))
+	for _, name := range tte.Names {
+		names = append(names, name.String())
+	}
+	return "(" + strings.Join(names, ", ") + ")"
+}
+
 type DeclareStatement struct {
 	Token    token.Token
 	Name     *Identifier
@@ -90,7 +111,7 @@ func (dl *DeclareStatement) String() string {
 
 	out.WriteString(dl.Name.String())
 
-	if !dl.Inferred {
+	if dl.Type != nil && !dl.Inferred {
 		out.WriteString(": ")
 		out.WriteString(dl.Type.Name())
 	}
@@ -116,8 +137,8 @@ func (dl *DeclareStatement) GetType() types.Type {
 
 type AssignStatement struct {
 	Token token.Token
-	Name     *Identifier
-	Value    Expression
+	Name  *Identifier
+	Value Expression
 }
 
 func (as *AssignStatement) statementNode() {}
@@ -128,7 +149,53 @@ func (as *AssignStatement) TokenLiteral() string {
 
 func (as *AssignStatement) String() string {
 	return fmt.Sprintf("%s = %s", as.Name.String(), as.Value.String())
-	
+
+}
+
+// TupleDeclareStatement destructures a tuple value into newly declared names.
+// An identifier named "_" discards the corresponding tuple element.
+type TupleDeclareStatement struct {
+	Token token.Token
+	Names []*Identifier
+	Value Expression
+}
+
+func (tds *TupleDeclareStatement) statementNode() {}
+
+func (tds *TupleDeclareStatement) TokenLiteral() string {
+	return tds.Token.Literal
+}
+
+func (tds *TupleDeclareStatement) String() string {
+	names := make([]string, 0, len(tds.Names))
+	for _, name := range tds.Names {
+		names = append(names, name.String())
+	}
+
+	return fmt.Sprintf("(%s) := %s;", strings.Join(names, ", "), tds.Value.String())
+}
+
+// TupleAssignStatement destructures a tuple value into existing mutable names.
+// An identifier named "_" discards the corresponding tuple element.
+type TupleAssignStatement struct {
+	Token token.Token
+	Names []*Identifier
+	Value Expression
+}
+
+func (tas *TupleAssignStatement) statementNode() {}
+
+func (tas *TupleAssignStatement) TokenLiteral() string {
+	return tas.Token.Literal
+}
+
+func (tas *TupleAssignStatement) String() string {
+	names := make([]string, 0, len(tas.Names))
+	for _, name := range tas.Names {
+		names = append(names, name.String())
+	}
+
+	return fmt.Sprintf("(%s) = %s;", strings.Join(names, ", "), tas.Value.String())
 }
 
 type ReturnStatement struct {
@@ -352,8 +419,15 @@ func (fl *FunctionLiteral) String() string {
 }
 
 type Parameter struct {
-	Name *Identifier
-	Type types.Type
+	Token token.Token
+	Name  *Identifier
+	Type  types.Type
+}
+
+func (p *Parameter) expressionNode() {}
+
+func (p *Parameter) TokenLiteral() string {
+	return p.Token.Literal
 }
 
 func (p *Parameter) String() string {

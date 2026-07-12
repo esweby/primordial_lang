@@ -24,7 +24,9 @@ func TestDeclareAnalysis(t *testing.T) {
 		p := parser.New(l)
 		program := p.ParseProgram()
 
-		a := NewSemanticAnalyzer(program)
+		symbols := NewSymbolTable()
+		a := NewSemanticAnalyzer(program, symbols)
+
 		errors := a.Analyze()
 
 		if len(errors) != test.numErrors {
