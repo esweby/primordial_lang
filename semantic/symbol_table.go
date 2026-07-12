@@ -37,3 +37,18 @@ func (st *SymbolTable) ExistsInCurrentScope(name string) bool {
 	_, ok := st.scope[name]
 	return ok
 }
+
+func (st *SymbolTable) Clone() *SymbolTable {
+	if st == nil {
+		return nil
+	}
+
+	clone := NewSymbolTable()
+	clone.outer = st.outer.Clone()
+
+	for name, symbol := range st.scope {
+		clone.scope[name] = symbol
+	}
+
+	return clone
+}

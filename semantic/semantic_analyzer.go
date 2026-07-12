@@ -18,8 +18,7 @@ type SemanticAnalyzer struct {
 	program        *ast.Program
 	errors         []error
 	current        *SymbolTable
-	requiresReturn bool
-	returnTypes    []types.Type // set when analyzing a function body
+	returnTypes    []types.Type
 }
 
 // NewSemanticAnalyzer creates a new analyzer.
@@ -27,9 +26,12 @@ func NewSemanticAnalyzer(program *ast.Program, symbols *SymbolTable) *SemanticAn
 	return &SemanticAnalyzer{
 		program:        program,
 		errors:         []error{},
-		current:        symbols,
-		requiresReturn: false,
+		current:        symbols.Clone(),
 	}
+}
+
+func (sa *SemanticAnalyzer) Symbols() *SymbolTable {
+	return sa.current
 }
 
 // Analyze runs the semantic analysis on the entire program.
@@ -250,14 +252,17 @@ func (sa *SemanticAnalyzer) analyzeDeclareStatement(stmt *ast.DeclareStatement) 
 			stmt.Type.Name(), rhsType.Name()))
 		return types.InvalidType
 	}
+
 	if stmt.Type == nil {
 		stmt.SetInferredType(rhsType)
 	}
+
 	sa.current.Set(stmt.Name.Value, &DeclareSymbol{
 		name: stmt.Name.Value,
 		typ:  stmt.GetType(),
 		mut:  stmt.Mutable,
 	})
+
 	return stmt.GetType()
 }
 
@@ -292,8 +297,11 @@ func (sa *SemanticAnalyzer) analyzeFunctionStatement(stmt *ast.FunctionStatement
 		})
 	}
 
-	// Set the context for return checking.
+	previousReturnTypes := sa.returnTypes
 	sa.returnTypes = returnTypes
+	defer func() {
+		sa.returnTypes = previousReturnTypes
+	}()
 
 	// Analyze the body.
 	bodyResult := sa.analyzeBlock(stmt.Body)
@@ -311,8 +319,6 @@ func (sa *SemanticAnalyzer) analyzeFunctionStatement(stmt *ast.FunctionStatement
 
 	// Exit function scope.
 	sa.exitScope()
-	// Reset returnTypes (not strictly necessary, but good hygiene).
-	sa.returnTypes = nil
 }
 
 // analyzeFunctionLiteral analyzes a function literal assigned to a variable.
@@ -347,14 +353,16 @@ func (sa *SemanticAnalyzer) analyzeFunctionLiteral(ds *ast.DeclareStatement) typ
 		sa.current.Set(p.Name.Value, &BasicSymbol{name: p.Name.Value, typ: p.Type})
 	}
 
+	previousReturnTypes := sa.returnTypes
 	sa.returnTypes = returnTypes
+	defer func() {
+		sa.returnTypes = previousReturnTypes
+	}()
 
 	for _, stmt := range fnLit.Body.Statements {
 		sa.analyzeStatement(stmt)
 	}
 
-	// Reset and exit
-	sa.returnTypes = nil
 	sa.exitScope()
 	return types.FunctionType
 }
@@ -489,13 +497,19 @@ func (sa *SemanticAnalyzer) analyzeStandaloneFunctionLiteral(fnLit *ast.Function
 			typ:  p.Type,
 		})
 	}
+	
+	previousReturnTypes := sa.returnTypes
 	sa.returnTypes = returnTypes
+	defer func() {
+		sa.returnTypes = previousReturnTypes
+	}()
+
 	bodyResult := sa.analyzeBlock(fnLit.Body)
 	if len(returnTypes) > 0 && !bodyResult.Returns {
 		sa.error("function literal declares return types but does not return on all paths")
 	}
+
 	sa.exitScope()
-	sa.returnTypes = nil
 }
 
 func (sa *SemanticAnalyzer) analyzeInfixExpression(e *ast.InfixExpression) types.Type {
@@ -509,39 +523,50 @@ func (sa *SemanticAnalyzer) analyzeInfixExpression(e *ast.InfixExpression) types
 	switch e.Operator {
 	case "+", "-", "*", "/":
 		if sa.isInvalidInfixType(left) {
-			sa.error(fmt.Sprintf("analyzeInfixExpression: left operand invalid type: %s", left.Name()))
+			sa.error(fmt.Sprintf("invalid type: %s", left.Name()))
 			return types.InvalidType
 		}
 		if sa.isInvalidInfixType(right) {
-			sa.error(fmt.Sprintf("analyzeInfixExpression: right operand invalid type: %s", right.Name()))
+			sa.error(fmt.Sprintf("invalid type: %s", right.Name()))
 			return types.InvalidType
 		}
-		if !types.IsNumeric(left) && !types.IsNumeric(right) {
-			sa.error(fmt.Sprintf("analyzeInfixExpression: mismatched types: %s and %s", left.Name(), right.Name()))
+		if !types.IsNumeric(left) || !types.IsNumeric(right) {
+			sa.error(fmt.Sprintf("mismatched types: %s and %s", left.Name(), right.Name()))
 			return types.InvalidType
 		}
 		return left
-
-	case "<", ">", "==", "!=":
-		if sa.isInvalidInfixType(left) {
-			sa.error(fmt.Sprintf("analyzeInfixExpression: left operand invalid type: %s", left.Name()))
+	case "<=", "<", ">", ">=":
+		if !types.IsNumeric(left) {
+			sa.error(fmt.Sprintf("invalid type: %s", left.Name()))
 			return types.InvalidType
 		}
-		if sa.isInvalidInfixType(right) {
-			sa.error(fmt.Sprintf("analyzeInfixExpression: right operand invalid type: %s", right.Name()))
+		if !types.IsNumeric(right) {
+			sa.error(fmt.Sprintf("invalid type: %s", right.Name()))
 			return types.InvalidType
-		}
-
-		if types.IsNumeric(left) && types.IsNumeric(right) {
-			return types.BoolType
 		}
 
 		if !types.IsTypesEqual(left, right) {
-			sa.error(fmt.Sprintf("analyzeInfixExpression: mismatched types: %s and %s", left.Name(), right.Name()))
+			sa.error(fmt.Sprintf("mismatched types: %s %s %s", left.Name(), e.Operator, right.Name()))
 			return types.InvalidType
 		}
-		return types.BoolType
 
+		return types.BoolType
+	case "==", "!=":
+		comparable := types.IsNumeric(left) ||
+        types.IsBoolean(left) ||
+        types.IsString(left)
+
+		if !comparable {
+			sa.error(fmt.Sprintf("invalid type: %s", left.Name()))
+			return types.InvalidType
+		}
+
+		if !types.IsTypesEqual(left, right) {
+			sa.error(fmt.Sprintf("mismatched types: %s %s %s", left.Name(), e.Operator, right.Name()))
+			return types.InvalidType
+		}
+
+		return types.BoolType
 	default:
 		sa.error(fmt.Sprintf("unknown infix operator: %s", e.Operator))
 		return types.InvalidType

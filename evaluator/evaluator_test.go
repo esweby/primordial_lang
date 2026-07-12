@@ -246,6 +246,27 @@ func TestFunctionTupleReturn(t *testing.T) {
 	}
 }
 
+func TestFunctionClosures(t *testing.T) {
+	tests := []struct{
+		input string
+		output int64
+	}{
+		{`
+			newAdder := fn(x int64): function {
+				return fn(y int64): int64 {
+					return x + y;
+				};
+			};
+			addFive := newAdder(5);
+			addFive(5);
+		`, 10},
+	}
+
+	for _, tt := range tests {
+		testIntegerObject(t, testEval(tt.input), tt.output)
+	}
+}
+
 func TestTupleDeclaration(t *testing.T) {
 	evaluated := testEval(`
 		fn values(): int32, bool { return 10, true; };
@@ -321,7 +342,6 @@ func testEval(input string) object.Object {
 	sa := semantic.NewSemanticAnalyzer(program, symbols)
 	sa.Analyze()
 	env := object.NewEnvironment()
-
 	return Eval(program, env)
 }
 
