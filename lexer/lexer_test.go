@@ -225,3 +225,19 @@ func TestBranchingToken(t *testing.T) {
 
 	checkTokens(t, input, tests)
 }
+
+func TestStringLiteral(t *testing.T) {
+	input := `
+	"foobar"; 
+	"footbar";
+	`
+
+	tests := Tests{
+		{token.STRING_LITERAL, "foobar"},
+		{token.SEMICOLON, ";"},
+		{token.STRING_LITERAL, "footbar"},
+		{token.SEMICOLON, ";"},
+	}
+
+	checkTokens(t, input, tests)
+}

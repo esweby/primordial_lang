@@ -14,13 +14,17 @@ type Type interface {
 	Name() string
 }
 
+type BuiltinFunction func(arg ...Object) Object
+
 const (
 	INTEGER_OBJ       = "INTEGER"
 	BOOLEAN_OBJ       = "BOOLEAN"
+	STRING_OBJ 		  = "STRING"
 	FUNCTION_OBJ      = "FUNCTION"
 	RETURN_VALUES_OBJ = "RETURN"
 	TUPLE_OBJ         = "TUPLE"
 	ERROR_OBJ         = "ERROR"
+	BUILTIN_OBJ		  = "BUILTIN"
 )
 
 type Object interface {
@@ -43,6 +47,14 @@ type Boolean struct {
 func (b *Boolean) Type() ObjectType { return BOOLEAN_OBJ }
 
 func (b *Boolean) Inspect() string { return fmt.Sprintf("%t", b.Value) }
+
+type String struct {
+	Value string
+}
+
+func (s *String) Type() ObjectType { return STRING_OBJ }
+
+func (s *String) Inspect() string { return s.Value }
 
 type ReturnValue struct {
 	Value []Object
@@ -131,3 +143,11 @@ func (t *Tuple) Inspect() string {
 
 	return "(" + strings.Join(elements, ", ") + ")"
 }
+
+type Builtin struct {
+	Fn BuiltinFunction
+}
+
+func (b *Builtin) Type() ObjectType { return BUILTIN_OBJ; }
+
+func (b *Builtin) Inspect() string { return "builtin function"}

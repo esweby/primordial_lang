@@ -289,6 +289,34 @@ func TestTupleAssignment(t *testing.T) {
 	testIntegerObject(t, evaluated, 30)
 }
 
+func TestStringLiteral(t *testing.T) {
+	input := `"Hello world";`
+
+	evaluated := testEval(input)
+	str, ok := evaluated.(*object.String)
+	if !ok {
+		t.Fatalf("expected string object. Got=%T (%+v)", evaluated, evaluated)
+	}
+
+	if str.Value != "Hello world" {
+		t.Fatalf("expected string value to be Hello world. Got=%s", str.Value)
+	}
+}
+
+func TestStringConcatonation(t *testing.T) {
+	input := `"Hello" + " " + "world";`
+
+	evaluated := testEval(input)
+	str, ok := evaluated.(*object.String)
+	if !ok {
+		t.Fatalf("expected string object. Got=%T (%+v)", evaluated, evaluated)
+	}
+
+	if str.Value != "Hello world" {
+		t.Fatalf("expected string value to be Hello world. Got=%s", str.Value)
+	}
+}
+
 func TestErrorHandling(t *testing.T) {
 	tests := []struct {
 		input   string
