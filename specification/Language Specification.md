@@ -229,6 +229,82 @@ fn getUserName(userId int): Result<(firstName, lastName), error> {
 pub (firstName, lastName) := try getUserName(1);
 ```
 
+### Arrays and Slices
+
+Arrays and slices will be handled similarly to Go but with a few subtle differences. Both will be called with similar syntax where the only difference is the [] will take an identifier to say this is a
+
+```
+array := <3>int64{1, 2, 3};
+slice := []int64{1, 2, 3};
+```
+
+Both of these constructs will be subject to the same delcaration assignment, being immutable by default. The internal contents will be mutable by default internal methods and direct access.
+
+These are common rules for arrays and slices
+
+- They do not support nil values, any value automatically set will be the types neutral value
+  - If you try to reassign a spot to nil it will return an error
+- Any assignment of a target to another declaration will be a copy
+  - The assignee will inheirt the type of the original variable
+  - If you try to declare the copy variable a different type you will get an error
+
+```
+x := [3]int32{1, 2, 3}
+y: []string := x
+```
+
+#### Arrays
+
+- Arrays are fixed size containers
+- Arrays do not support length changing methods
+- If you take a copy of a section of the array (see Accessing entries) it will return a slice, not a fixed array
+
+##### Future methods
+
+- toSlice()
+
+#### Slices
+
+The following methods will be available to slices.
+
+- Slices are variable sized containers
+
+##### .prepend(T) and .append(T)
+
+This will place a value at the start or end of a target
+
+##### .removeFirst() and .removeLast()
+
+This will remove a value from the beginning or end of a target and will not return them,
+
+##### .popFirst() and .popLast()
+
+This will remove a value from the beginning or end of a target and will return them.
+
+##### .splice(pos int, numPos int)
+
+Slice will remove the value at pos. If you pass a second argument to the function then it will remove that many items. Any item(s) removed will be returned in a slice.
+
+##### Future implementations
+
+- .map
+- .filter
+- .reduce
+
+#### Accessing entries
+
+An entry can be accessed using bracket notation, like other languages. You can also use bracket notation to return a deep copied slice, exclusive.
+
+```
+arr := []int32{0, 1, 2, 3, 4}
+arr[0] // 0
+arr[0:2] // [0, 1]
+```
+
+##### Future implementations
+
+- .find
+
 ### Error Handling
 
 Errors will be handled directly in Primordial using a Result<Val, Error> where errors will be handled as a value. This means, where an error is possible, a function should return the Result type.

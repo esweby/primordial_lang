@@ -6,7 +6,7 @@ import (
 	"github.com/esweby/primordial_lang/token"
 )
 
-func TestString(t *testing.T) {
+func TestDeclareStatementString(t *testing.T) {
 	program := &Program{
 		Statements: []Statement{
 			&DeclareStatement{

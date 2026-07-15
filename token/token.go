@@ -45,6 +45,8 @@ const (
 	RBRACE // }
 	LTAG   // <
 	RTAG   // >
+	LBRACKET // [
+	RBRACKET // ]
 
 	// Keywords
 	FN
@@ -88,6 +90,8 @@ var tokenNames = [...]string{
 	RBRACE:    "RBRACE",
 	LTAG:      "LTAG", // <>
 	RTAG:      "RTAG",
+	LBRACKET: "LBRACKET",
+	RBRACKET: "RBRACKET",
 	// Keywords
 	FN:     "FN",
 	TRUE:   "TRUE",

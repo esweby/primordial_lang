@@ -241,3 +241,33 @@ func TestStringLiteral(t *testing.T) {
 
 	checkTokens(t, input, tests)
 }
+
+func TestArrayLiteral(t *testing.T) {
+	input := `
+	x: [3]int32 := [3]int32{1, 2, 3};
+	`
+
+	tests := Tests{
+		{token.IDENT, "x"},
+		{token.COLON, ":"},
+		{token.LBRACKET, "["},
+		{token.INT_LITERAL, "3"},
+		{token.RBRACKET, "]"},
+		{token.IDENT, "int32"},
+		{token.DECLARE, ":="},
+		{token.LBRACKET, "["},
+		{token.INT_LITERAL, "3"},
+		{token.RBRACKET, "]"},
+		{token.IDENT, "int32"},
+		{token.LBRACE, "{"},
+		{token.INT_LITERAL, "1"},
+		{token.COMMA, ","},
+		{token.INT_LITERAL, "2"},
+		{token.COMMA, ","},
+		{token.INT_LITERAL, "3"},
+		{token.RBRACE, "}"},
+		{token.SEMICOLON, ";"},
+	}
+
+	checkTokens(t, input, tests)
+}
