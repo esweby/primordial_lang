@@ -7,7 +7,7 @@ import (
 	"github.com/esweby/primordial_lang/lexer"
 )
 
-func TestDeclareStatements(t *testing.T) {
+func TestParseDeclareStatements(t *testing.T) {
 	input := `x := 5;
 y := 10;
 mut cats := 12;
@@ -19,13 +19,13 @@ mice: int32 := 5;`
 	p := New(l)
 
 	program := p.ParseProgram()
-	checkParserErrors(t, p)
+	requireNoParserErrors(t, p)
 
 	if program == nil {
 		t.Fatalf("ParseProgram() returned nil")
 	}
 
-	checkNumExpectedStatements(t, program.Statements, 6)
+	requireStatementCount(t, program.Statements, 6)
 
 	tests := []struct {
 		expectedIdentifier string
@@ -70,4 +70,30 @@ func testDeclareStatement(t *testing.T, stmt ast.Statement, name string) bool {
 	}
 
 	return true
+}
+
+func TestParseReturnStatements(t *testing.T) {
+	input := `return 5;
+return 10;
+return 99332211;`
+
+	l := lexer.New(input)
+	p := New(l)
+
+	program := p.ParseProgram()
+	requireNoParserErrors(t, p)
+
+	requireStatementCount(t, program.Statements, 3)
+
+	for _, stmt := range program.Statements {
+		returnStatement, ok := stmt.(*ast.ReturnStatement)
+		if !ok {
+			t.Errorf("stmt not *ast.ReturnStatement got=%T", stmt)
+			continue
+		}
+
+		if returnStatement.TokenLiteral() != "return" {
+			t.Errorf("returnStatement.tokenLiteral not return. Got=%s", returnStatement.TokenLiteral())
+		}
+	}
 }

@@ -9,7 +9,7 @@ import (
 	"github.com/esweby/primordial_lang/types"
 )
 
-func TestFunctionLiteralBasicParsing(t *testing.T) {
+func TestParseFunctionLiteralWithoutParameters(t *testing.T) {
 	input := `x := fn() {x := 19;}`
 
 	function := parseFunctionLiteral(t, input)
@@ -23,7 +23,7 @@ func TestFunctionLiteralBasicParsing(t *testing.T) {
 	}
 }
 
-func TestFunctionLiteralWithArguments(t *testing.T) {
+func TestParseFunctionLiteralWithParameters(t *testing.T) {
 	input := `x := fn(x int32, y int32) { x + y; }`
 
 	function := parseFunctionLiteral(t, input)
@@ -40,7 +40,7 @@ func TestFunctionLiteralWithArguments(t *testing.T) {
 	}
 }
 
-func TestFunctionLiteralParsing(t *testing.T) {
+func TestParseFunctionLiteralWithReturnType(t *testing.T) {
 	input := `x := fn(x int32, y int32): int32 { x + y; }`
 
 	function := parseFunctionLiteral(t, input)
@@ -65,7 +65,7 @@ func TestFunctionLiteralParsing(t *testing.T) {
 	testInfixExpression(t, bodyStmt.Expression, "x", "+", "y")
 }
 
-func TestParsingParameters(t *testing.T) {
+func TestParseFunctionParameters(t *testing.T) {
 	type expectedType = []*ast.Parameter
 	tests := []struct {
 		input    string
@@ -78,15 +78,15 @@ func TestParsingParameters(t *testing.T) {
 		{
 			input: `b := fn(x int32) {}`,
 			expected: expectedType{
-				createParameterToken("x", &types.Int32{}),
+				newParameter("x", &types.Int32{}),
 			},
 		},
 		{
 			input: `c := fn(x int32, y int32, z int32) {}`,
 			expected: expectedType{
-				createParameterToken("x", &types.Int32{}),
-				createParameterToken("y", &types.Int32{}),
-				createParameterToken("z", &types.Int32{}),
+				newParameter("x", &types.Int32{}),
+				newParameter("y", &types.Int32{}),
+				newParameter("z", &types.Int32{}),
 			},
 		},
 	}
@@ -118,8 +118,8 @@ func parseFunctionLiteral(t *testing.T, input string) *ast.FunctionLiteral {
 	l := lexer.New(input)
 	p := New(l)
 	program := p.ParseProgram()
-	checkParserErrors(t, p)
-	checkNumExpectedStatements(t, program.Statements, 1)
+	requireNoParserErrors(t, p)
+	requireStatementCount(t, program.Statements, 1)
 
 	stmt := program.Statements[0]
 
@@ -137,7 +137,7 @@ func parseFunctionLiteral(t *testing.T, input string) *ast.FunctionLiteral {
 	return function
 }
 
-func createParameterToken(paramName string, expType types.Type) *ast.Parameter {
+func newParameter(paramName string, expType types.Type) *ast.Parameter {
 	return &ast.Parameter{
 		Name: &ast.Identifier{
 			Token: token.Token{
@@ -148,4 +148,78 @@ func createParameterToken(paramName string, expType types.Type) *ast.Parameter {
 		},
 		Type: expType,
 	}
+}
+
+func TestParseFunctionStatementWithoutParameters(t *testing.T) {
+	input := `fn add() {x := 19;}`
+
+	function := parseFunctionStatement(t, input)
+
+	if len(function.Parameters) != 0 {
+		t.Fatalf("expected 0 parameters. got=%d", len(function.Parameters))
+	}
+
+	if len(function.Body.Statements) != 1 {
+		t.Fatalf("expected 1 function body statement. got=%d", len(function.Body.Statements))
+	}
+}
+
+func TestParseFunctionStatementWithParameters(t *testing.T) {
+	input := `fn add(x int32, y int32) {x + y;}`
+
+	function := parseFunctionStatement(t, input)
+
+	if len(function.Parameters) != 2 {
+		t.Fatalf("expected 2 parameters. got=%d", len(function.Parameters))
+	}
+
+	testLiteralExpression(t, function.Parameters[0].Name, "x")
+	testLiteralExpression(t, function.Parameters[1].Name, "y")
+
+	if len(function.Body.Statements) != 1 {
+		t.Fatalf("expected 1 function body statement. got=%d", len(function.Body.Statements))
+	}
+}
+
+func TestParseFunctionStatementWithReturnType(t *testing.T) {
+	input := `fn add(x int32, y int32): int32 { x + y; }`
+
+	function := parseFunctionStatement(t, input)
+
+	if len(function.Parameters) != 2 {
+		t.Fatalf("expected 2 parameters. got=%d", len(function.Parameters))
+	}
+
+	testLiteralExpression(t, function.Parameters[0].Name, "x")
+	testLiteralExpression(t, function.Parameters[1].Name, "y")
+
+	if len(function.Body.Statements) != 1 {
+		t.Fatalf("expected 1 function body statement. got=%d", len(function.Body.Statements))
+	}
+
+	bodyStmt, ok := function.Body.Statements[0].(*ast.ExpressionStatement)
+	if !ok {
+		t.Fatalf("function.Body.Statements[0] is not ast.ExpressionStatement. got=%T",
+			function.Body.Statements[0])
+	}
+
+	testInfixExpression(t, bodyStmt.Expression, "x", "+", "y")
+}
+
+func parseFunctionStatement(t *testing.T, input string) *ast.FunctionStatement {
+	l := lexer.New(input)
+	p := New(l)
+	program := p.ParseProgram()
+	requireNoParserErrors(t, p)
+	requireStatementCount(t, program.Statements, 1)
+
+	stmt := program.Statements[0]
+
+	function, ok := stmt.(*ast.FunctionStatement)
+	if !ok {
+		t.Fatalf("stmt.Expression is not ast.FunctionStatement. got=%T",
+			stmt)
+	}
+
+	return function
 }

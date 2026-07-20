@@ -8,8 +8,8 @@ import (
 	"github.com/esweby/primordial_lang/parser"
 )
 
-func TestDeclareAnalysis(t *testing.T) {
-	tests := Tests{
+func TestAnalyzeDeclareStatement(t *testing.T) {
+	tests := analysisTests{
 		{`brian := 1;`, 0},
 		{`brian := 1; brian := 1`, 1},
 		{`brian: int32 := true; `, 1},
@@ -29,17 +29,17 @@ func TestDeclareAnalysis(t *testing.T) {
 
 		errors := a.Analyze()
 
-		if len(errors) != test.numErrors {
+		if len(errors) != test.expectedErrors {
 			for _, msg := range errors {
 				log.Printf("%s", msg)
 			}
-			t.Fatalf("test %d errors contain %d errors. expected=%d", i, len(errors), test.numErrors)
+			t.Fatalf("test %d errors contain %d errors. expected=%d", i, len(errors), test.expectedErrors)
 		}
 	}
 }
 
 // func TestAssignmentAnalysis(t *testing.T) {
-// 	tests := Tests{
+// 	tests := analysisTests{
 // 		{`brian := 1; brian = 2`, 0},
 // 	}
 
@@ -51,11 +51,11 @@ func TestDeclareAnalysis(t *testing.T) {
 // 		a := NewSemanticAnalyzer(program)
 // 		errors := a.Analyze()
 
-// 		if len(errors) != test.numErrors {
+// 		if len(errors) != test.expectedErrors {
 // 			for _, msg := range errors {
 // 				log.Printf("%s", msg)
 // 			}
-// 			t.Fatalf("test %d errors contain %d errors. expected=%d", i, len(errors), test.numErrors)
+// 			t.Fatalf("test %d errors contain %d errors. expected=%d", i, len(errors), test.expectedErrors)
 // 		}
 // 	}
 // }

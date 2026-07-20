@@ -13,7 +13,7 @@ func analyzeTupleInput(input string) []error {
 	return NewSemanticAnalyzer(program, NewSymbolTable()).Analyze()
 }
 
-func TestTupleDeclarationAnalysis(t *testing.T) {
+func TestAnalyzeTupleDeclaration(t *testing.T) {
 	errors := analyzeTupleInput(`
 		fn values(): int32, bool { return 10, true; }
 		(number, _) := values();
@@ -24,7 +24,7 @@ func TestTupleDeclarationAnalysis(t *testing.T) {
 	}
 }
 
-func TestTupleAssignmentAnalysis(t *testing.T) {
+func TestAnalyzeTupleAssignment(t *testing.T) {
 	errors := analyzeTupleInput(`
 		fn values(): int32, int32 { return 10, 20; }
 		mut first := 0;
@@ -36,7 +36,7 @@ func TestTupleAssignmentAnalysis(t *testing.T) {
 	}
 }
 
-func TestTupleAssignmentRejectsImmutableTarget(t *testing.T) {
+func TestRejectImmutableTupleAssignment(t *testing.T) {
 	errors := analyzeTupleInput(`
 		fn values(): int32, int32 { return 10, 20; }
 		first := 0;
