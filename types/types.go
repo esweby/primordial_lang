@@ -2,6 +2,7 @@ package types
 
 import (
 	"bytes"
+	"strconv"
 	"strings"
 )
 
@@ -142,6 +143,21 @@ func (fn *Function) Size() int    { return 16 }
 func (fn *Function) Kind() Kind   { return KindFunction }
 func  NewFunction(paramTypes, returnTypes []Type) *Function {
 	return &Function{ ParamTypes: paramTypes, ReturnTypes: returnTypes }
+}
+
+type Array struct {
+	elementType Type
+	length int
+}
+
+func (al *Array) Length() int { return al.length }
+func (al *Array) Size() int { return al.length * al.elementType.Size() }
+func (al *Array) Kind() Kind { return KindArray }
+func (al *Array) Name() string {
+	return "[" + strconv.Itoa(al.length) + "]" +al.elementType.Name()
+}
+func NewArray(t Type, length int) *Array {
+	return &Array{elementType: t, length: length}
 }
 
 type Tuple struct {

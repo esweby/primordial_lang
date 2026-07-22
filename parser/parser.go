@@ -184,16 +184,22 @@ func (p *Parser) parseDeclareStatement() *ast.DeclareStatement {
 	stmt.Name = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
 	p.nextToken()
 
+	// A defined type is here
 	if p.curTokenIs(token.COLON) {
 		p.nextToken()
-		expectedType := p.curToken.Literal
-		builtin, ok := types.GetBuiltin(expectedType)
-		if !ok {
-			// error for invalid type
-			return nil
-		}
 
-		stmt.Type = builtin
+		if p.curTokenIs(token.LBRACKET) {
+
+		} else {
+			expectedType := p.curToken.Literal
+			builtin, ok := types.GetBuiltin(expectedType)
+			if !ok {
+				// error for invalid type
+				return nil
+			}
+	
+			stmt.Type = builtin
+		}
 		p.nextToken()
 	}
 
