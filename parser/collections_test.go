@@ -13,8 +13,8 @@ func TestParsingArrayLiteral(t *testing.T) {
 		expectedElements []int64
 	}{
 		{`input: [3]int32 := [3]int32{1, 2, 3};`, []int64{1, 2, 3}},
-		{`input: [3]int32 := {1, 2, 3}`, []int64{1, 2, 3}},
-		{`input := [3]int32{1, 2, 3}`, []int64{1, 2, 3}},
+		{`input := [3]int32{1, 2, 3};`, []int64{1, 2, 3}},
+		{`input := [3]int32{};`, []int64{}},
 	}
 
 	for i, tt := range tests {
@@ -32,6 +32,43 @@ func TestParsingArrayLiteral(t *testing.T) {
 		literal, ok := declaration.Value.(*ast.ArrayLiteral)
 		if !ok {
 			t.Fatalf("test %d: expected arrayLiteral, got %T", i, declaration.Value)
+		}
+
+		if len(literal.Elements) != len(tt.expectedElements) {
+			t.Fatalf("test %d: expected %d elements, got %d", i, len(tt.expectedElements), len(literal.Elements))
+		}
+
+		for vi, v := range literal.Elements {
+			testIntegerLiteral(t, v, int64(tt.expectedElements[vi]))
+		}
+	}
+}
+
+func TestParsingSpliceLiteral(t *testing.T) {
+	tests := []struct{
+		input string
+		expectedElements []int64
+	}{
+		{`input: []int32 := []int32{1, 2, 3};`, []int64{1, 2, 3}},
+		{`input := []int32{1, 2, 3};`, []int64{1, 2, 3}},
+		{`input := []int32{};`, []int64{}},
+	}
+
+	for i, tt := range tests {
+		l := lexer.New(tt.input)
+		p := New(l)
+		program := p.ParseProgram()
+		requireNoParserErrors(t, p)
+		requireStatementCount(t, program.Statements, 1)
+
+		declaration, ok := program.Statements[0].(*ast.DeclareStatement)
+		if !ok {
+			t.Fatalf("test %d: expected declareStatement, got %T", i, program.Statements[0])
+		}
+
+		literal, ok := declaration.Value.(*ast.SliceLiteral)
+		if !ok {
+			t.Fatalf("test %d: expected SliceLiteral, got %T", i, declaration.Value)
 		}
 
 		if len(literal.Elements) != len(tt.expectedElements) {

@@ -16,6 +16,7 @@ const (
 	KindString
 	KindBoolean
 	KindArray
+	KindSlice
 	KindFunction
 	KindTuple
 )
@@ -158,6 +159,21 @@ func (al *Array) Name() string {
 }
 func NewArray(t Type, length int) *Array {
 	return &Array{elementType: t, length: length}
+}
+
+type Slice struct {
+	elementType Type
+	length int
+}
+
+func (al *Slice) Length() int { return al.length }
+func (al *Slice) Size() int { return al.length * al.elementType.Size() }
+func (al *Slice) Kind() Kind { return KindSlice }
+func (al *Slice) Name() string {
+	return "[]" +al.elementType.Name()
+}
+func NewSlice(t Type) *Slice {
+	return &Slice{elementType: t, length: 0}
 }
 
 type Tuple struct {

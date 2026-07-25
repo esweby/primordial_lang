@@ -189,7 +189,41 @@ func (p *Parser) parseDeclareStatement() *ast.DeclareStatement {
 		p.nextToken()
 
 		if p.curTokenIs(token.LBRACKET) {
+			p.nextToken()
+			if p.curTokenIs(token.INT_LITERAL) {
+				length := p.curToken.Literal
+				p.nextToken()
+				if !p.curTokenIs(token.RBRACKET) {
+					// Error malformed array declaration
+					return nil
+				}
 
+				p.nextToken()
+				expectedType := p.curToken.Literal
+				builtin, ok := types.GetBuiltin(expectedType)
+				if !ok {
+					return nil
+				}
+				parsedInt, err := strconv.ParseInt(length, 10, 0)
+				if err != nil {
+					return nil
+				}
+
+				arr := types.NewArray(builtin, int(parsedInt))
+				stmt.Type = arr
+			} else if p.curTokenIs(token.RBRACKET) {
+				p.nextToken()
+				expectedType := p.curToken.Literal
+				builtin, ok := types.GetBuiltin(expectedType)
+				if !ok {
+					return nil
+				}
+
+				slice := types.NewSlice(builtin)
+				stmt.Type = slice
+			} else {
+				return nil
+			}
 		} else {
 			expectedType := p.curToken.Literal
 			builtin, ok := types.GetBuiltin(expectedType)
@@ -665,6 +699,99 @@ func (p *Parser) parseIntegerLiteral() ast.Expression {
 
 	lit.Value = value
 	return lit
+}
+
+// Should primarily be entering from parseDelcaration
+// Starts on [
+func (p *Parser) parseLeftBracket() ast.Expression {
+	tok := p.curToken
+	length := -1
+
+	p.nextToken() // either int or ] 
+	if p.curTokenIs(token.INT_LITERAL) {
+		arrLength := p.curToken.Literal
+		parsedInt, err := strconv.ParseInt(arrLength, 10, 0)
+		if err != nil {
+			return nil
+		}
+
+		length = int(parsedInt)
+
+		if length <= 0 {
+			return nil
+		}
+
+		p.nextToken() // move from int to ]
+	}
+
+	if !p.curTokenIs(token.RBRACKET) {
+		// Error malformed array declaration
+		return nil
+	}
+	
+	p.nextToken()
+	expectedType := p.curToken.Literal
+	t, ok := types.GetBuiltin(expectedType)
+	if !ok {
+		return nil
+	}
+	
+	p.nextToken()
+	if !p.curTokenIs(token.LBRACE) {
+		return nil
+	}
+
+	p.nextToken()
+
+	contents := []ast.Expression{}
+	if p.curTokenIs(token.RBRACE) {
+		p.nextToken()
+		return p.returnCollection(tok, length, t, contents)
+	}
+
+	for {
+		expr := p.parseExpression(LOWEST)
+		if expr == nil {
+			return nil
+		}
+
+		contents = append(contents, expr)
+		if !p.peekTokenIs(token.COMMA) {
+			break
+		}
+		p.nextToken()
+		p.nextToken()
+	}
+
+	if !p.expectPeek(token.RBRACE) {
+		return nil
+	}
+
+	p.nextToken()
+	return p.returnCollection(tok, length, t, contents)
+}
+
+func (p *Parser) returnCollection(
+	tok token.Token,
+	length int,
+	t types.Type,
+	contents []ast.Expression,
+) ast.Expression {
+	if length > -1 {
+		return &ast.ArrayLiteral{
+			Token: tok,
+			Size: length,
+			Type: t,
+			Elements: contents,
+		}
+	}
+
+	return &ast.SliceLiteral{
+		Token: tok,
+		Size: len(contents),
+		Type: t,
+		Elements: contents,
+	}
 }
 
 func (p *Parser) parseStringLiterals() ast.Expression {

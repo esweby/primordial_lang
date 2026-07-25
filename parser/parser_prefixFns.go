@@ -14,4 +14,5 @@ func (p *Parser) registerPrefixFns() {
 	p.registerPrefix(token.IF, p.parseIfExpression)
 	p.registerPrefix(token.FN, p.parseFunctionLiteral)
 	p.registerPrefix(token.STRING_LITERAL, p.parseStringLiterals)
+	p.registerPrefix(token.LBRACKET, p.parseLeftBracket)
 }

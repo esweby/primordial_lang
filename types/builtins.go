@@ -78,7 +78,7 @@ func IsBoolean(t Type) bool {
 }
 
 func IsArrayLiteral(t Type) bool {
-	return t.Kind() == KindArrayLiteral
+	return t.Kind() == KindArray
 }
 
 func IsFunction(t Type) bool {

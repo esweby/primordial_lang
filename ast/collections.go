@@ -28,12 +28,39 @@ func (al *ArrayLiteral) String() string {
 		elements = append(elements, el.String())
 	}
 
-	out.WriteString("[")
+	out.WriteString("{")
 	out.WriteString(strings.Join(elements, ", "))
-	out.WriteString("]")
+	out.WriteString("}")
 
 	return out.String()
 }
+
+type SliceLiteral struct {
+	Token token.Token
+	Type types.Type
+	Size int
+	Elements []Expression
+}
+
+func (sl *SliceLiteral) expressionNode() {}
+
+func (sl *SliceLiteral) TokenLiteral() string { return sl.Token.Literal }
+
+func (sl *SliceLiteral) String() string { 
+	var out bytes.Buffer
+
+	elements := []string{}
+	for _, el := range sl.Elements {
+		elements = append(elements, el.String())
+	}
+
+	out.WriteString("{")
+	out.WriteString(strings.Join(elements, ", "))
+	out.WriteString("}")
+
+	return out.String()
+}
+
 // TupleDeclareStatement destructures a tuple value into newly declared names.
 // An identifier named "_" discards the corresponding tuple element.
 type TupleDeclareStatement struct {
