@@ -72,6 +72,10 @@ func (sa *SemanticAnalyzer) analyzeExpression(exp ast.Expression) types.Type {
 		// We analyze it but do not register it; we return its generic type.
 		sa.analyzeStandaloneFunctionLiteral(e)
 		return types.FunctionType
+	case *ast.ArrayLiteral:
+		return sa.analyzeArrayLiteral(e)
+	case *ast.SliceLiteral:
+		return sa.analyzeSliceLiteral(e)
 	default:
 		sa.error(fmt.Sprintf("analyzeExpression received unexpected expression: %T", e))
 		return types.InvalidType

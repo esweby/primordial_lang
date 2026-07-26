@@ -7,6 +7,72 @@ import (
 	"github.com/esweby/primordial_lang/types"
 )
 
+func (sa *SemanticAnalyzer) analyzeArrayLiteral(exp *ast.ArrayLiteral) types.Type {
+	if exp.Type == nil {
+		sa.error("array literal has no element type")
+		return types.InvalidType
+	}
+
+	if exp.Size <= 0 {
+		sa.error("array length must be greater than zero")
+		return types.InvalidType
+	}
+
+	if len(exp.Elements) > exp.Size {
+		sa.error(fmt.Sprintf(
+			"array length is %d, but %d elements were supplied",
+			exp.Size,
+			len(exp.Elements),
+		))
+		return types.InvalidType
+	}
+
+	if !sa.analyzeCollectionElements("array", exp.Type, exp.Elements) {
+		return types.InvalidType
+	}
+
+	return types.NewArray(exp.Type, exp.Size)
+}
+
+func (sa *SemanticAnalyzer) analyzeSliceLiteral(exp *ast.SliceLiteral) types.Type {
+	if exp.Type == nil {
+		sa.error("slice literal has no element type")
+		return types.InvalidType
+	}
+
+	if !sa.analyzeCollectionElements("slice", exp.Type, exp.Elements) {
+		return types.InvalidType
+	}
+
+	return types.NewSlice(exp.Type)
+}
+
+func (sa *SemanticAnalyzer) analyzeCollectionElements(
+	collectionName string,
+	elementType types.Type,
+	elements []ast.Expression,
+) bool {
+	for i, element := range elements {
+		actualType := sa.analyzeExpression(element)
+		if types.IsInvalid(actualType) {
+			return false
+		}
+
+		if !types.IsAssignable(elementType, actualType) {
+			sa.error(fmt.Sprintf(
+				"%s element %d: expected %s, got %s",
+				collectionName,
+				i,
+				elementType.Name(),
+				actualType.Name(),
+			))
+			return false
+		}
+	}
+
+	return true
+}
+
 func (sa *SemanticAnalyzer) analyzeTupleDeclareStatement(stmt *ast.TupleDeclareStatement) types.Type {
 	rhsType := sa.analyzeExpression(stmt.Value)
 	elementTypes, ok := types.UnwrapTuple(rhsType)
