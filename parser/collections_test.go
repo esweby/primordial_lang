@@ -116,3 +116,24 @@ func TestRejectTypedTupleDeclaration(t *testing.T) {
 		t.Fatal("expected typed tuple declaration to produce a parser error")
 	}
 }
+
+func TestParsingIndexExpressions(t *testing.T) {
+	input := `myArray[1 + 1];`
+	p := New(lexer.New(input))
+	program := p.ParseProgram()
+	requireNoParserErrors(t, p)
+
+	stmt, _ := program.Statements[0].(*ast.ExpressionStatement)
+	indexExp, ok := stmt.Expression.(*ast.IndexExpression)
+	if !ok {
+		t.Fatalf("exp not *ast.IndexExpression, got=%T", stmt)
+	}
+
+	if !testIdentifier(t, indexExp.Left, "myArray") {
+		return
+	}
+
+	if !testInfixExpression(t, indexExp.Index, 1, "+", 1) {
+		return
+	}
+}

@@ -13,4 +13,5 @@ func (p *Parser) registerInfixFns() {
 	p.registerInfix(token.LTAG, p.parseInfixExpression)
 	p.registerInfix(token.RTAG, p.parseInfixExpression)
 	p.registerInfix(token.LPAREN, p.parseCallExpression)
+	p.registerInfix(token.LBRACKET, p.parseIndexExpression)
 }
