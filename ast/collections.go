@@ -10,9 +10,9 @@ import (
 )
 
 type ArrayLiteral struct {
-	Token token.Token
-	Type types.Type
-	Size int
+	Token    token.Token
+	Type     types.Type
+	Size     int
 	Elements []Expression
 }
 
@@ -20,7 +20,7 @@ func (al *ArrayLiteral) expressionNode() {}
 
 func (al *ArrayLiteral) TokenLiteral() string { return al.Token.Literal }
 
-func (al *ArrayLiteral) String() string { 
+func (al *ArrayLiteral) String() string {
 	var out bytes.Buffer
 
 	elements := []string{}
@@ -36,9 +36,9 @@ func (al *ArrayLiteral) String() string {
 }
 
 type SliceLiteral struct {
-	Token token.Token
-	Type types.Type
-	Size int
+	Token    token.Token
+	Type     types.Type
+	Size     int
 	Elements []Expression
 }
 
@@ -46,7 +46,7 @@ func (sl *SliceLiteral) expressionNode() {}
 
 func (sl *SliceLiteral) TokenLiteral() string { return sl.Token.Literal }
 
-func (sl *SliceLiteral) String() string { 
+func (sl *SliceLiteral) String() string {
 	var out bytes.Buffer
 
 	elements := []string{}
@@ -109,7 +109,7 @@ func (tas *TupleAssignStatement) String() string {
 
 type IndexExpression struct {
 	Token token.Token
-	Left Expression
+	Left  Expression
 	Index Expression
 }
 

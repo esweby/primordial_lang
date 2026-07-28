@@ -19,12 +19,14 @@ type BuiltinFunction func(arg ...Object) Object
 const (
 	INTEGER_OBJ       = "INTEGER"
 	BOOLEAN_OBJ       = "BOOLEAN"
-	STRING_OBJ 		  = "STRING"
+	STRING_OBJ        = "STRING"
 	FUNCTION_OBJ      = "FUNCTION"
 	RETURN_VALUES_OBJ = "RETURN"
 	TUPLE_OBJ         = "TUPLE"
 	ERROR_OBJ         = "ERROR"
-	BUILTIN_OBJ		  = "BUILTIN"
+	BUILTIN_OBJ       = "BUILTIN"
+	ARRAY_OBJ         = "ARRAY"
+	SLICE_OBJ         = "SLICE"
 )
 
 type Object interface {
@@ -129,6 +131,36 @@ func (f *Function) Inspect() string {
 	return out.String()
 }
 
+type Array struct {
+	Elements []Object
+}
+
+func (a *Array) Type() ObjectType { return ARRAY_OBJ }
+
+func (a *Array) Inspect() string {
+	elements := make([]string, 0, len(a.Elements))
+	for _, e := range a.Elements {
+		elements = append(elements, e.Inspect())
+	}
+
+	return "{" + strings.Join(elements, ", ") + "}"
+}
+
+type Slice struct {
+	Elements []Object
+}
+
+func (s *Slice) Type() ObjectType { return SLICE_OBJ }
+
+func (s *Slice) Inspect() string {
+	elements := make([]string, 0, len(s.Elements))
+	for _, e := range s.Elements {
+		elements = append(elements, e.Inspect())
+	}
+
+	return "{" + strings.Join(elements, ", ") + "}"
+}
+
 type Tuple struct {
 	Elements []Object
 }
@@ -148,6 +180,6 @@ type Builtin struct {
 	Fn BuiltinFunction
 }
 
-func (b *Builtin) Type() ObjectType { return BUILTIN_OBJ; }
+func (b *Builtin) Type() ObjectType { return BUILTIN_OBJ }
 
-func (b *Builtin) Inspect() string { return "builtin function"}
+func (b *Builtin) Inspect() string { return "builtin function" }

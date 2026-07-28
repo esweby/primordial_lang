@@ -247,8 +247,8 @@ func TestFunctionTupleReturn(t *testing.T) {
 }
 
 func TestFunctionClosures(t *testing.T) {
-	tests := []struct{
-		input string
+	tests := []struct {
+		input  string
 		output int64
 	}{
 		{`
@@ -362,6 +362,114 @@ func TestBangOperator(t *testing.T) {
 	}
 }
 
+func TestArrayLiterals(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected []int64
+	}{
+		{`[3]int32{1, 2, 3}`, []int64{1, 2, 3}},
+	}
+
+	for i, tt := range tests {
+		evaluated := testEval(tt.input)
+		result, ok := evaluated.(*object.Array)
+		if !ok {
+			t.Errorf("test %d: expected object.Array, got=%T", i, evaluated)
+		}
+
+		lenExpected := len(tt.expected)
+		lenGot := len(result.Elements)
+
+		if lenGot != lenExpected {
+			t.Errorf("test %d: expected %d items, got=%d", i, lenExpected, lenGot)
+		}
+
+		for k, ei := range tt.expected {
+			testIntegerObject(t, result.Elements[k], ei)
+		}
+	}
+}
+
+func TestSliceLiterals(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected []int64
+	}{
+		{`[]int32{1, 2, 3}`, []int64{1, 2, 3}},
+	}
+
+	for i, tt := range tests {
+		evaluated := testEval(tt.input)
+		result, ok := evaluated.(*object.Slice)
+		if !ok {
+			t.Errorf("test %d: expected object.Slice, got=%T", i, evaluated)
+		}
+
+		lenExpected := len(tt.expected)
+		lenGot := len(result.Elements)
+
+		if lenGot != lenExpected {
+			t.Errorf("test %d: expected %d items, got=%d", i, lenExpected, lenGot)
+		}
+
+		for k, ei := range tt.expected {
+			testIntegerObject(t, result.Elements[k], ei)
+		}
+	}
+}
+
+func TestArrayOperatorExpressions(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected interface{}
+	}{
+		{`[3]int32{0,1,2}[0]`, 0},
+		{`[3]int32{0,1,2}[1]`, 1},
+		{`[3]int32{0,1,2}[2]`, 2},
+		{`[3]int32{0,1,2}[1+1]`, 2},
+		{`[3]int32{0,1,2}[2-1]`, 1},
+		{`[3]int32{0,1,2}[3-1]`, 2},
+		{`[3]int32{0,1,2}[-1]`, nil},
+		{`[3]int32{0,1,2}[3]`, nil},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		integer, ok := tt.expected.(int)
+		if ok {
+			testIntegerObject(t, evaluated, int64(integer))
+		} else {
+			testErrorObject(t, evaluated)
+		}
+	}
+}
+
+func TestSliceOperatorExpressions(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected interface{}
+	}{
+		{`[]int32{0,1,2}[0]`, 0},
+		{`[]int32{0,1,2}[1]`, 1},
+		{`[]int32{0,1,2}[2]`, 2},
+		{`[]int32{0,1,2}[1+1]`, 2},
+		{`[]int32{0,1,2}[2-1]`, 1},
+		{`[]int32{0,1,2}[3-1]`, 2},
+		{`[]int32{0,1,2}[-1]`, nil},
+		{`[]int32{0,1,2}[3]`, nil},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		integer, ok := tt.expected.(int)
+		if ok {
+			testIntegerObject(t, evaluated, int64(integer))
+		} else {
+			testErrorObject(t, evaluated)
+		}
+	}
+}
+
 func testEval(input string) object.Object {
 	l := lexer.New(input)
 	p := parser.New(l)
@@ -421,6 +529,16 @@ func testFunction(t *testing.T, fn object.Object, testNum, numParams, numReturns
 func testNullObject(t *testing.T, obj object.Object) bool {
 	if obj != nil {
 		t.Errorf("object is not NULL. got=%T (%+v)", obj, obj)
+		return false
+	}
+
+	return true
+}
+
+func testErrorObject(t *testing.T, obj object.Object) bool {
+	_, ok := obj.(*object.Error)
+	if !ok {
+		t.Errorf("object is not Error. got=%T (%+v)", obj, obj)
 		return false
 	}
 

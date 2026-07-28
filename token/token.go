@@ -39,12 +39,12 @@ const (
 	COMMA
 	SEMICOLON
 
-	LPAREN // (
-	RPAREN // )
-	LBRACE // {
-	RBRACE // }
-	LTAG   // <
-	RTAG   // >
+	LPAREN   // (
+	RPAREN   // )
+	LBRACE   // {
+	RBRACE   // }
+	LTAG     // <
+	RTAG     // >
 	LBRACKET // [
 	RBRACKET // ]
 
@@ -90,8 +90,8 @@ var tokenNames = [...]string{
 	RBRACE:    "RBRACE",
 	LTAG:      "LTAG", // <>
 	RTAG:      "RTAG",
-	LBRACKET: "LBRACKET",
-	RBRACKET: "RBRACKET",
+	LBRACKET:  "LBRACKET",
+	RBRACKET:  "RBRACKET",
 	// Keywords
 	FN:     "FN",
 	TRUE:   "TRUE",
@@ -119,8 +119,8 @@ var keywords = map[string]TokenType{
 type Token struct {
 	Type    TokenType
 	Literal string
-	Line int
-	Column int
+	Line    int
+	Column  int
 }
 
 func GetTokenName(tokenType int) string {

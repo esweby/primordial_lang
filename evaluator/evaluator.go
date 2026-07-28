@@ -24,6 +24,32 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 
 		env.Set(node.Name.Value, value)
 		return nil
+	case *ast.ArrayLiteral:
+		elements := evalExpressions(node.Elements, env)
+		if len(elements) == 1 && isError(elements[0]) {
+			return elements[0]
+		}
+
+		return &object.Array{Elements: elements}
+	case *ast.SliceLiteral:
+		elements := evalExpressions(node.Elements, env)
+		if len(elements) == 1 && isError(elements[0]) {
+			return elements[0]
+		}
+
+		return &object.Slice{Elements: elements}
+	case *ast.IndexExpression:
+		left := Eval(node.Left, env)
+		if isError(left) {
+			return left
+		}
+
+		index := Eval(node.Index, env)
+		if isError(index) {
+			return index
+		}
+
+		return evalIndexExpression(left, index)
 	case *ast.TupleDeclareStatement:
 		return evalTupleDeclaration(node, env)
 	case *ast.AssignStatement:
@@ -218,6 +244,41 @@ func evalExpressions(args []ast.Expression, env *object.Environment) []object.Ob
 	return result
 }
 
+func evalIndexExpression(left, index object.Object) object.Object {
+	switch {
+	case left.Type() == object.ARRAY_OBJ && index.Type() == object.INTEGER_OBJ:
+		return evalArrayIndexExpression(left, index)
+	case left.Type() == object.SLICE_OBJ && index.Type() == object.INTEGER_OBJ:
+		return evalSliceIndexExpression(left, index)
+	default:
+		return newError("index operator not supported: %s", left.Type())
+	}
+}
+
+func evalArrayIndexExpression(array, index object.Object) object.Object {
+	arrayObject := array.(*object.Array)
+	idx := index.(*object.Integer).Value
+	max := int64(len(arrayObject.Elements) - 1)
+
+	if idx < 0 || idx > max {
+		return newError("array index out of bounds: %d", idx)
+	}
+
+	return arrayObject.Elements[idx]
+}
+
+func evalSliceIndexExpression(array, index object.Object) object.Object {
+	slice := array.(*object.Slice)
+	idx := index.(*object.Integer).Value
+	max := int64(len(slice.Elements) - 1)
+
+	if idx < 0 || idx > max {
+		return newError("array index out of bounds: %d", idx)
+	}
+
+	return slice.Elements[idx]
+}
+
 func applyFunction(fn object.Object, args []object.Object) object.Object {
 	if fn == nil {
 		return newError("attempted to call missing function value")
@@ -231,7 +292,7 @@ func applyFunction(fn object.Object, args []object.Object) object.Object {
 	case *object.Builtin:
 		return fn.Fn(args...)
 	}
-	
+
 	return newError("not a function: %s", fn.Type())
 }
 
@@ -293,11 +354,11 @@ func evalIdentifier(i *ast.Identifier, env *object.Environment) object.Object {
 		return val
 
 	}
-	
+
 	if val, ok := builtins[i.Value]; ok {
 		return val
 	}
-	
+
 	return newError("%s", "identifier not found: "+i.Value)
 }
 
@@ -363,7 +424,7 @@ func evalStringInfixExpression(operator string, left, right object.Object) objec
 	leftVal := left.(*object.String).Value
 	rightVal := right.(*object.String).Value
 
-	return &object.String{Value:leftVal + rightVal}
+	return &object.String{Value: leftVal + rightVal}
 }
 
 func evalBangOperatorExpression(expr object.Object) object.Object {

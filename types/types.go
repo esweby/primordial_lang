@@ -111,12 +111,12 @@ func (s *String) Name() string { return "string" }
 func (s *String) Size() int    { return 16 }
 func (s *String) Kind() Kind   { return KindString }
 
-type Function struct{
-	ParamTypes []Type
+type Function struct {
+	ParamTypes  []Type
 	ReturnTypes []Type
 }
 
-func (fn *Function) Name() string { 
+func (fn *Function) Name() string {
 	var out bytes.Buffer
 
 	out.WriteString("fn(")
@@ -137,25 +137,24 @@ func (fn *Function) Name() string {
 		out.WriteString("void")
 	}
 
-
 	return out.String()
 }
-func (fn *Function) Size() int    { return 16 }
-func (fn *Function) Kind() Kind   { return KindFunction }
-func  NewFunction(paramTypes, returnTypes []Type) *Function {
-	return &Function{ ParamTypes: paramTypes, ReturnTypes: returnTypes }
+func (fn *Function) Size() int  { return 16 }
+func (fn *Function) Kind() Kind { return KindFunction }
+func NewFunction(paramTypes, returnTypes []Type) *Function {
+	return &Function{ParamTypes: paramTypes, ReturnTypes: returnTypes}
 }
 
 type Array struct {
 	elementType Type
-	length int
+	length      int
 }
 
 func (al *Array) Length() int { return al.length }
-func (al *Array) Size() int { return al.length * al.elementType.Size() }
-func (al *Array) Kind() Kind { return KindArray }
+func (al *Array) Size() int   { return al.length * al.elementType.Size() }
+func (al *Array) Kind() Kind  { return KindArray }
 func (al *Array) Name() string {
-	return "[" + strconv.Itoa(al.length) + "]" +al.elementType.Name()
+	return "[" + strconv.Itoa(al.length) + "]" + al.elementType.Name()
 }
 func NewArray(t Type, length int) *Array {
 	return &Array{elementType: t, length: length}
@@ -163,14 +162,14 @@ func NewArray(t Type, length int) *Array {
 
 type Slice struct {
 	elementType Type
-	length int
+	length      int
 }
 
 func (al *Slice) Length() int { return al.length }
-func (al *Slice) Size() int { return al.length * al.elementType.Size() }
-func (al *Slice) Kind() Kind { return KindSlice }
+func (al *Slice) Size() int   { return al.length * al.elementType.Size() }
+func (al *Slice) Kind() Kind  { return KindSlice }
 func (al *Slice) Name() string {
-	return "[]" +al.elementType.Name()
+	return "[]" + al.elementType.Name()
 }
 func NewSlice(t Type) *Slice {
 	return &Slice{elementType: t, length: 0}

@@ -7,8 +7,8 @@ import (
 )
 
 func TestLenBuiltin(t *testing.T) {
-	tests := []struct{
-		input string
+	tests := []struct {
+		input    string
 		expected interface{}
 	}{
 		{`len("")`, 0},

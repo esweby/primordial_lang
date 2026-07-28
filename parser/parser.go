@@ -37,7 +37,7 @@ var precedences = map[token.TokenType]int{
 	token.FORWARD_SLASH: PRODUCT,
 	token.ASTERIK:       PRODUCT,
 	token.LPAREN:        CALL,
-	token.LBRACKET:		 INDEX,
+	token.LBRACKET:      INDEX,
 }
 
 type Parser struct {
@@ -233,7 +233,7 @@ func (p *Parser) parseDeclareStatement() *ast.DeclareStatement {
 				// error for invalid type
 				return nil
 			}
-	
+
 			stmt.Type = builtin
 		}
 		p.nextToken()
@@ -709,7 +709,7 @@ func (p *Parser) parseLeftBracket() ast.Expression {
 	tok := p.curToken
 	length := -1
 
-	p.nextToken() // either int or ] 
+	p.nextToken() // either int or ]
 	if p.curTokenIs(token.INT_LITERAL) {
 		arrLength := p.curToken.Literal
 		parsedInt, err := strconv.ParseInt(arrLength, 10, 0)
@@ -730,14 +730,14 @@ func (p *Parser) parseLeftBracket() ast.Expression {
 		// Error malformed array declaration
 		return nil
 	}
-	
+
 	p.nextToken()
 	expectedType := p.curToken.Literal
 	t, ok := types.GetBuiltin(expectedType)
 	if !ok {
 		return nil
 	}
-	
+
 	p.nextToken()
 	if !p.curTokenIs(token.LBRACE) {
 		return nil
@@ -769,7 +769,6 @@ func (p *Parser) parseLeftBracket() ast.Expression {
 		return nil
 	}
 
-	p.nextToken()
 	return p.returnCollection(tok, length, t, contents)
 }
 
@@ -781,23 +780,23 @@ func (p *Parser) returnCollection(
 ) ast.Expression {
 	if length > -1 {
 		return &ast.ArrayLiteral{
-			Token: tok,
-			Size: length,
-			Type: t,
+			Token:    tok,
+			Size:     length,
+			Type:     t,
 			Elements: contents,
 		}
 	}
 
 	return &ast.SliceLiteral{
-		Token: tok,
-		Size: len(contents),
-		Type: t,
+		Token:    tok,
+		Size:     len(contents),
+		Type:     t,
 		Elements: contents,
 	}
 }
 
 func (p *Parser) parseIndexExpression(left ast.Expression) ast.Expression {
-	exp := &ast.IndexExpression{ Token: p.curToken, Left: left, }
+	exp := &ast.IndexExpression{Token: p.curToken, Left: left}
 
 	p.nextToken()
 	exp.Index = p.parseExpression(LOWEST)
@@ -810,7 +809,7 @@ func (p *Parser) parseIndexExpression(left ast.Expression) ast.Expression {
 }
 
 func (p *Parser) parseStringLiterals() ast.Expression {
-	return &ast.StringLiteral{ Token: p.curToken, Value: p.curToken.Literal }
+	return &ast.StringLiteral{Token: p.curToken, Value: p.curToken.Literal}
 }
 
 func (p *Parser) parseBoolean() ast.Expression {

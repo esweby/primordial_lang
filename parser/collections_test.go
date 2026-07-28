@@ -8,8 +8,8 @@ import (
 )
 
 func TestParsingArrayLiteral(t *testing.T) {
-	tests := []struct{
-		input string
+	tests := []struct {
+		input            string
 		expectedElements []int64
 	}{
 		{`input: [3]int32 := [3]int32{1, 2, 3};`, []int64{1, 2, 3}},
@@ -45,8 +45,8 @@ func TestParsingArrayLiteral(t *testing.T) {
 }
 
 func TestParsingSpliceLiteral(t *testing.T) {
-	tests := []struct{
-		input string
+	tests := []struct {
+		input            string
 		expectedElements []int64
 	}{
 		{`input: []int32 := []int32{1, 2, 3};`, []int64{1, 2, 3}},
