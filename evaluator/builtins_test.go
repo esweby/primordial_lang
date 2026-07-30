@@ -13,6 +13,8 @@ func TestLenBuiltin(t *testing.T) {
 	}{
 		{`len("")`, 0},
 		{`len("five")`, 4},
+		{`len([3]int64{1, 2, 3})`, 3},
+		{`len([]int64{1, 2, 3, 4, 5})`, 5},
 		{`len(1)`, "argument to `len` not supported, got INTEGER"},
 		{`len("five", "four")`, "wrong number of arguments. got=2, want=1"},
 	}

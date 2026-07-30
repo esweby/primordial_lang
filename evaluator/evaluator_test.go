@@ -368,6 +368,7 @@ func TestArrayLiterals(t *testing.T) {
 		expected []int64
 	}{
 		{`[3]int32{1, 2, 3}`, []int64{1, 2, 3}},
+		{`[3]int64{1}`, []int64{1, 0, 0}},
 	}
 
 	for i, tt := range tests {
@@ -386,6 +387,39 @@ func TestArrayLiterals(t *testing.T) {
 
 		for k, ei := range tt.expected {
 			testIntegerObject(t, result.Elements[k], ei)
+		}
+	}
+}
+
+func TestArrayLiteralEmptyStrings(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected []string
+	}{
+		{`[3]string{}`, []string{"", "", ""}},
+		{`[5]string{"hello"}`, []string{"hello", "", "", "", ""}},
+	}
+
+	for i, tt := range tests {
+		evaluated := testEval(tt.input)
+		result, ok := evaluated.(*object.Array)
+		if !ok {
+			t.Errorf("test %d: expected object.Array, got=%T", i, evaluated)
+		}
+
+		if len(result.Elements) != len(tt.expected) {
+			t.Fatalf("test %d failed: expected %d elements, got=%d", i, len(tt.expected), len(result.Elements))
+		}
+
+		for k, ett := range tt.expected {
+			str, ok := result.Elements[k].(*object.String)
+			if !ok {
+				t.Fatalf("test %d failed: expected object.String, got=%T", k, result.Elements[k])
+			}
+
+			if str.Value != ett {
+				t.Fatalf("test %d failed: string %s does not match %s", k, str.Value, ett)
+			}
 		}
 	}
 }
@@ -421,7 +455,7 @@ func TestSliceLiterals(t *testing.T) {
 func TestArrayOperatorExpressions(t *testing.T) {
 	tests := []struct {
 		input    string
-		expected interface{}
+		expected any
 	}{
 		{`[3]int32{0,1,2}[0]`, 0},
 		{`[3]int32{0,1,2}[1]`, 1},
@@ -447,7 +481,7 @@ func TestArrayOperatorExpressions(t *testing.T) {
 func TestSliceOperatorExpressions(t *testing.T) {
 	tests := []struct {
 		input    string
-		expected interface{}
+		expected any
 	}{
 		{`[]int32{0,1,2}[0]`, 0},
 		{`[]int32{0,1,2}[1]`, 1},

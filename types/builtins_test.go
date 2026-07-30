@@ -36,6 +36,32 @@ func TestGetBuiltin(t *testing.T) {
 	}
 }
 
+func TestNeutralValue(t *testing.T) {
+	tests := []struct {
+		name string
+		typ  Type
+		want any
+		ok   bool
+	}{
+		{"integer", Int32Type, int64(0), true},
+		{"unsigned integer", UInt64Type, int64(0), true},
+		{"float", Float32Type, float64(0), true},
+		{"string", StringType, "", true},
+		{"boolean", BoolType, false, true},
+		{"array", NewArray(Int32Type, 1), nil, false},
+		{"nil", nil, nil, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := NeutralValue(tt.typ)
+			if ok != tt.ok || got != tt.want {
+				t.Fatalf("NeutralValue(%v) = (%#v, %t), want (%#v, %t)", tt.typ, got, ok, tt.want, tt.ok)
+			}
+		})
+	}
+}
+
 // typesEqual checks if two Types are the same concrete type
 // (since we don't have equality for interfaces).
 func typesEqual(a, b Type) bool {

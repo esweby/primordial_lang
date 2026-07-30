@@ -40,6 +40,25 @@ func GetBuiltin(typeName string) (Type, bool) {
 	return typ, ok
 }
 
+func NeutralValue(t Type) (any, bool) {
+	if t == nil {
+		return nil, false
+	}
+
+	switch t.Kind() {
+	case KindInteger:
+		return int64(0), true
+	case KindFloat:
+		return float64(0), true
+	case KindString:
+		return "", true
+	case KindBoolean:
+		return false, true
+	default:
+		return nil, false
+	}
+}
+
 // Maybe a better name
 func IsTypesEqual(a, b Type) bool {
 	if a == nil || b == nil {

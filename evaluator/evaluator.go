@@ -5,6 +5,7 @@ import (
 
 	"github.com/esweby/primordial_lang/ast"
 	"github.com/esweby/primordial_lang/object"
+	"github.com/esweby/primordial_lang/types"
 )
 
 var (
@@ -25,12 +26,7 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		env.Set(node.Name.Value, value)
 		return nil
 	case *ast.ArrayLiteral:
-		elements := evalExpressions(node.Elements, env)
-		if len(elements) == 1 && isError(elements[0]) {
-			return elements[0]
-		}
-
-		return &object.Array{Elements: elements}
+		return evalArrayLiteral(node, env)
 	case *ast.SliceLiteral:
 		elements := evalExpressions(node.Elements, env)
 		if len(elements) == 1 && isError(elements[0]) {
@@ -206,6 +202,30 @@ func evalProgram(stmts []ast.Statement, env *object.Environment) object.Object {
 	}
 
 	return result
+}
+
+func evalArrayLiteral(
+	arr *ast.ArrayLiteral,
+	env *object.Environment,
+) object.Object {
+	elements := evalExpressions(arr.Elements, env)
+	if len(elements) == 1 && isError(elements[0]) {
+		return elements[0]
+	}
+
+	for len(elements) < arr.Size {
+		neutral, ok := neutralObject(arr.Type)
+		if !ok {
+			return newError(
+				"internal error: no neutral value for type %s",
+				arr.Type.Name(),
+			)
+		}
+
+		elements = append(elements, neutral)
+	}
+
+	return &object.Array{Elements: elements}
 }
 
 func evalBlock(block *ast.BlockExpression, env *object.Environment) object.Object {
@@ -477,4 +497,17 @@ func newError(format string, a ...interface{}) *object.Error {
 
 func isError(obj object.Object) bool {
 	return obj != nil && obj.Type() == object.ERROR_OBJ
+}
+
+func neutralObject(t types.Type) (object.Object, bool) {
+	switch t.Kind() {
+	case types.KindInteger:
+		return &object.Integer{Value: 0}, true
+	case types.KindBoolean:
+		return &object.Boolean{Value: false}, true
+	case types.KindString:
+		return &object.String{Value: ""}, true
+	default:
+		return nil, false
+	}
 }

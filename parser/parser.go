@@ -248,7 +248,7 @@ func (p *Parser) parseDeclareStatement() *ast.DeclareStatement {
 
 	stmt.Value = p.parseExpression(LOWEST)
 
-	for !p.curTokenIs(token.SEMICOLON) && !p.curTokenIs(token.EOF) && !p.curTokenIs(token.RBRACE) {
+	if p.peekTokenIs(token.SEMICOLON) {
 		p.nextToken()
 	}
 
@@ -747,7 +747,6 @@ func (p *Parser) parseLeftBracket() ast.Expression {
 
 	contents := []ast.Expression{}
 	if p.curTokenIs(token.RBRACE) {
-		p.nextToken()
 		return p.returnCollection(tok, length, t, contents)
 	}
 
