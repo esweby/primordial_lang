@@ -76,6 +76,8 @@ func (sa *SemanticAnalyzer) analyzeExpression(exp ast.Expression) types.Type {
 		return sa.analyzeArrayLiteral(e)
 	case *ast.SliceLiteral:
 		return sa.analyzeSliceLiteral(e)
+	case *ast.MemberExpression:
+		return sa.analyzeMemberExpression(e)
 	default:
 		sa.error(fmt.Sprintf("analyzeExpression received unexpected expression: %T", e))
 		return types.InvalidType
@@ -171,7 +173,10 @@ func (sa *SemanticAnalyzer) analyzePrefixExpression(pe *ast.PrefixExpression) ty
 }
 
 func (sa *SemanticAnalyzer) analyzeCallExpression(ce *ast.CallExpression) types.Type {
-	// First, analyze the callee expression.
+	if member, ok := ce.Function.(*ast.MemberExpression); ok {
+		return sa.analyzeMemberCall(member, ce.Arguments)
+	}
+
 	calleeType := sa.analyzeExpression(ce.Function)
 	if !types.IsFunction(calleeType) {
 		sa.error("cannot call non-function")

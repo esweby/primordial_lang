@@ -57,7 +57,7 @@ func (al *Array) LookupMember(name string) (MemberDefinition, bool) {
 			Kind:            MemberMethod,
 			Parameters:      nil,
 			ReturnTypes:     []Type{ NewSlice(al.elementType) },
-			MutatesReceiver: true,
+			MutatesReceiver: false,
 		}, true
 
 	default:
