@@ -37,6 +37,7 @@ const (
 
 	// Delimeters
 	COMMA
+	DOT
 	SEMICOLON
 
 	LPAREN   // (
@@ -83,6 +84,7 @@ var tokenNames = [...]string{
 	LESS_THAN_OR_EQUALS:    "LESS_THAN_OR_EQUALS",
 	// Delimeters
 	COMMA:     "COMMA",
+	DOT:       "DOT",
 	SEMICOLON: "SEMICOLON",
 	LPAREN:    "LPAREN", // ()
 	RPAREN:    "RPAREN",

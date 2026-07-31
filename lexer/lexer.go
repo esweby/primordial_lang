@@ -59,6 +59,8 @@ func (l *Lexer) NextToken() token.Token {
 		}
 	case ';':
 		tok = l.newToken(token.SEMICOLON, l.ch)
+	case '.':
+		tok = l.newToken(token.DOT, l.ch)
 	case ',':
 		tok = l.newToken(token.COMMA, l.ch)
 	case '+':

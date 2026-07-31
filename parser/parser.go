@@ -24,6 +24,7 @@ const (
 	PRODUCT
 	PREFIX
 	CALL
+	DOT
 	INDEX
 )
 
@@ -38,6 +39,7 @@ var precedences = map[token.TokenType]int{
 	token.ASTERIK:       PRODUCT,
 	token.LPAREN:        CALL,
 	token.LBRACKET:      INDEX,
+	token.DOT:			 DOT,
 }
 
 type Parser struct {
@@ -471,6 +473,24 @@ func (p *Parser) parseCallArguments() []ast.Expression {
 	}
 
 	return args
+}
+
+func (p *Parser) parseMemberExpression(receiver ast.Expression) ast.Expression {
+	exp := &ast.MemberExpression{
+		Token: p.curToken,
+		Receiver: receiver,
+	}
+
+	if !p.expectPeek(token.IDENT) {
+		return nil
+	}
+
+	exp.Name = &ast.Identifier{
+		Token: p.curToken,
+		Value: p.curToken.Literal,
+	}
+
+	return exp
 }
 
 func (p *Parser) parseIfExpression() ast.Expression {

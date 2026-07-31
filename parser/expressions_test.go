@@ -567,3 +567,62 @@ func TestParseCallExpression(t *testing.T) {
 	testLiteralExpression(t, exp.Arguments[1], 3)
 	testLiteralExpression(t, exp.Arguments[2], 4)
 }
+
+func TestParseCallMemberExpression(t *testing.T) {
+	tests := []struct{
+		input string
+		reciever string
+		name string
+		expectedArgs int
+	}{
+		{`carrots.add(2, 3, 4);`, "carrots", "add", 3},
+		{`arr.toSlice();`, "arr", "toSlice", 0},
+	}
+	
+	for i, tt := range tests {
+		l := lexer.New(tt.input)
+		p := New(l)
+	
+		program := p.ParseProgram()
+		requireNoParserErrors(t, p)
+		requireStatementCount(t, program.Statements, 1)
+
+		stmt, ok := program.Statements[0].(*ast.ExpressionStatement)
+		if !ok {
+			t.Fatalf("test %d: stmt is not an ExpressionStatement. Got=%T",
+				i,
+				program.Statements[0],
+			)
+		}
+		
+		exp, ok := stmt.Expression.(*ast.CallExpression)
+		if !ok { 
+			t.Fatalf("test %d: stmt is not a CallExpression. Got=%T",
+				i,
+				stmt.Expression,
+			)
+		}
+
+		fn := exp.Function
+		memExpr, ok := fn.(*ast.MemberExpression)
+		if !ok {
+			t.Fatalf("test %d: stmt is not a MemberExpression. Got=%T",
+				i, fn,
+			)
+		}
+
+		if memExpr.Receiver.String() != tt.reciever {
+			t.Fatalf("test %d: memExpr.Receiver is not %s. Got=%s",
+				i, tt.reciever, memExpr.Receiver.String(),
+			)
+		}
+		
+		if !testIdentifier(t, memExpr.Name, tt.name) {
+			return
+		}
+		
+		if len(exp.Arguments) != tt.expectedArgs {
+			t.Fatalf("wrong length of arguments. Got=%d", len(exp.Arguments))
+		}
+	}
+}

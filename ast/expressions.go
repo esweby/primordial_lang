@@ -180,6 +180,22 @@ func (ce *CallExpression) String() string {
 	return out.String()
 }
 
+type MemberExpression struct {
+	Token token.Token
+	Receiver Expression
+	Name	 *Identifier
+}
+
+func (me *MemberExpression) expressionNode() {}
+
+func (me *MemberExpression) TokenLiteral() string {
+	return me.Token.Literal
+}
+
+func (me *MemberExpression) String() string {
+    return me.Receiver.String() + "." + me.Name.String()
+}
+
 type BlockExpression struct {
 	Token      token.Token
 	Statements []Statement
