@@ -626,3 +626,52 @@ func TestParseCallMemberExpression(t *testing.T) {
 		}
 	}
 }
+
+func TestParseMemberExpression(t *testing.T) {
+	tests := []struct {
+		input    string
+		receiver string
+		name     string
+	}{
+		{`arr.length;`, "arr", "length"},
+		{`user.name;`, "user", "name"},
+	}
+
+	for i, tt := range tests {
+		p := New(lexer.New(tt.input))
+		program := p.ParseProgram()
+
+		requireNoParserErrors(t, p)
+		requireStatementCount(t, program.Statements, 1)
+
+		stmt, ok := program.Statements[0].(*ast.ExpressionStatement)
+		if !ok {
+			t.Fatalf(
+				"test %d: expected ExpressionStatement, got %T",
+				i,
+				program.Statements[0],
+			)
+		}
+
+		member, ok := stmt.Expression.(*ast.MemberExpression)
+		if !ok {
+			t.Fatalf(
+				"test %d: expected MemberExpression, got %T",
+				i,
+				stmt.Expression,
+			)
+		}
+
+		receiver, ok := member.Receiver.(*ast.Identifier)
+		if !ok {
+			t.Fatalf(
+				"test %d: expected Identifier receiver, got %T",
+				i,
+				member.Receiver,
+			)
+		}
+
+		testIdentifier(t, receiver, tt.receiver)
+		testIdentifier(t, member.Name, tt.name)
+	}
+}
