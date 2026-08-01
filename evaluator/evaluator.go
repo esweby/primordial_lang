@@ -79,6 +79,10 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		env.Set(node.Name.Value, fn)
 		return fn
 	case *ast.CallExpression:
+		if member, ok := node.Function.(*ast.MemberExpression); ok {
+			return evalMemberCall(member, node.Arguments, env)
+		}
+
 		function := Eval(node.Function, env)
 		if isError(function) {
 			return function
@@ -90,6 +94,8 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		}
 
 		return applyFunction(function, args)
+	case *ast.MemberExpression:
+		return evalMemberProperty(node, env)
 	case *ast.BlockExpression:
 		return evalBlock(node, env)
 	case *ast.ExpressionStatement:
