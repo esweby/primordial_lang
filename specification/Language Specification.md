@@ -305,6 +305,104 @@ arr[0:2] // [0, 1]
 
 - .find
 
+### Structs
+
+Structs are Primordial's primary way of providing a logical grouping and encapsulation of proprties and methods. This will be borrowing heavily from Rust way of working with some syntactic flavour to make the process easier to use.
+
+A struct will be declared using the following syntax
+
+```
+struct Identifier {}
+```
+
+#### Initialisation
+
+Initialisation will be done by the user declaring a New method on the struct and returning a instance of that struct. While the language is young I won't be handling references too explicitly and will leave this a little naive for the moment.
+
+```
+struct Person {
+	age: int32;
+    name: string;
+
+	fn new(age: int32, name: string): Person {
+    	return Person{
+        	age,
+            name
+        }
+    }
+}
+
+person1 := Person.New(25, "Tobias");
+person2 := Person.New(23, "Edward");
+```
+
+#### Properties
+
+Properties can be declared and accessed on a struct but follow the same rules as regular variables, they must use the pub and mut syntax.
+
+```
+struct Person {
+	pub mut name: string;
+    age: int32;
+
+    fn new(name: string, age: int32): Person {
+    	return Person{
+        	name,
+            age,
+        }
+    }
+}
+
+tobias := Person.New("Tobias", "29");
+tobias.name; // accessible
+tobias.age // is private to the struct
+```
+
+1. For a property to be mutable, it must be explicitly declared with the mut keyword
+2. For a property to be publicly accessible, it must be explicitly declared with the pub keyword
+3. If a property is considered private, it is internally availabkle to methods declared on Person and can be returned via that.
+
+#### Methods
+
+There are two distinct ways of declaring a method on a struct, within a impl container denoting that those methods have access to the self property and can only be used on an instance of the struct. Methods declared outside of the impl block are considered static methods and may be called as Person.new(), for exampl).
+
+```
+struct Person {
+	name: string;
+    age: int32;
+    mut email: string;
+
+    fn new(name: string, age: int32, email: string): Person {
+    	return Person{
+        	name,
+            age,
+            email
+        }
+    }
+
+    impl {
+    	fn getName(): string { return self.name; }
+
+    	fn getAge(): int32 { return self.age; }
+
+    	fn setEmail(newEmail: string): boolean {
+        	self.email = newEmail;
+        	return true;
+    	}
+
+    	fn getEmail(): string { return self.email; }
+    }
+
+}
+
+tobias := Person.New("tobias", 29, "tobias@domain.com");
+name := tobias.getName();
+tobias.setEmail("new_email@domain.com");
+email := tobias.getEmail();
+```
+
+The self { } code block means that all functions declared within that block are passed self implicitly.
+
 ### Error Handling
 
 Errors will be handled directly in Primordial using a Result<Val, Error> where errors will be handled as a value. This means, where an error is possible, a function should return the Result type.
