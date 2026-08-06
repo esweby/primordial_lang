@@ -332,8 +332,8 @@ struct Person {
     }
 }
 
-person1 := Person.New(25, "Tobias");
-person2 := Person.New(23, "Edward");
+person1 := Person.new(25, "Tobias");
+person2 := Person.new(23, "Edward");
 ```
 
 #### Properties
@@ -353,7 +353,7 @@ struct Person {
     }
 }
 
-tobias := Person.New("Tobias", "29");
+tobias := Person.new("Tobias", "29");
 tobias.name; // accessible
 tobias.age // is private to the struct
 ```
@@ -395,7 +395,7 @@ struct Person {
 
 }
 
-tobias := Person.New("tobias", 29, "tobias@domain.com");
+tobias := Person.new("tobias", 29, "tobias@domain.com");
 name := tobias.getName();
 tobias.setEmail("new_email@domain.com");
 email := tobias.getEmail();

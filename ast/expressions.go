@@ -181,9 +181,9 @@ func (ce *CallExpression) String() string {
 }
 
 type MemberExpression struct {
-	Token token.Token
+	Token    token.Token
 	Receiver Expression
-	Name	 *Identifier
+	Name     *Identifier
 }
 
 func (me *MemberExpression) expressionNode() {}
@@ -193,7 +193,7 @@ func (me *MemberExpression) TokenLiteral() string {
 }
 
 func (me *MemberExpression) String() string {
-    return me.Receiver.String() + "." + me.Name.String()
+	return me.Receiver.String() + "." + me.Name.String()
 }
 
 type BlockExpression struct {
