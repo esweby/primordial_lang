@@ -44,7 +44,7 @@ func (s *Slice) LookupMember(name string) (MemberDefinition, bool) {
 
 func (al *Array) LookupMember(name string) (MemberDefinition, bool) {
 	switch name {
-	case "length": 
+	case "length":
 		return MemberDefinition{
 			Name:        "length",
 			Kind:        MemberProperty,
@@ -56,7 +56,7 @@ func (al *Array) LookupMember(name string) (MemberDefinition, bool) {
 			Name:            "toSlice",
 			Kind:            MemberMethod,
 			Parameters:      nil,
-			ReturnTypes:     []Type{ NewSlice(al.elementType) },
+			ReturnTypes:     []Type{NewSlice(al.elementType)},
 			MutatesReceiver: false,
 		}, true
 

@@ -569,20 +569,20 @@ func TestParseCallExpression(t *testing.T) {
 }
 
 func TestParseCallMemberExpression(t *testing.T) {
-	tests := []struct{
-		input string
-		reciever string
-		name string
+	tests := []struct {
+		input        string
+		reciever     string
+		name         string
 		expectedArgs int
 	}{
 		{`carrots.add(2, 3, 4);`, "carrots", "add", 3},
 		{`arr.toSlice();`, "arr", "toSlice", 0},
 	}
-	
+
 	for i, tt := range tests {
 		l := lexer.New(tt.input)
 		p := New(l)
-	
+
 		program := p.ParseProgram()
 		requireNoParserErrors(t, p)
 		requireStatementCount(t, program.Statements, 1)
@@ -594,9 +594,9 @@ func TestParseCallMemberExpression(t *testing.T) {
 				program.Statements[0],
 			)
 		}
-		
+
 		exp, ok := stmt.Expression.(*ast.CallExpression)
-		if !ok { 
+		if !ok {
 			t.Fatalf("test %d: stmt is not a CallExpression. Got=%T",
 				i,
 				stmt.Expression,
@@ -616,11 +616,11 @@ func TestParseCallMemberExpression(t *testing.T) {
 				i, tt.reciever, memExpr.Receiver.String(),
 			)
 		}
-		
+
 		if !testIdentifier(t, memExpr.Name, tt.name) {
 			return
 		}
-		
+
 		if len(exp.Arguments) != tt.expectedArgs {
 			t.Fatalf("wrong length of arguments. Got=%d", len(exp.Arguments))
 		}
