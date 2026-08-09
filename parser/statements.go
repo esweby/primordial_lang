@@ -1,11 +1,8 @@
 package parser
 
 import (
-	"strconv"
-
 	"github.com/esweby/primordial_lang/ast"
 	"github.com/esweby/primordial_lang/token"
-	"github.com/esweby/primordial_lang/types"
 )
 
 func (p *Parser) parseStatement() ast.Statement {
@@ -30,10 +27,6 @@ func (p *Parser) parseStatement() ast.Statement {
 			return stmt
 		}
 
-		if p.peekTokenIs(token.ASSIGN) {
-			return p.parseAssignStatement()
-		}
-
 		return p.parseExpressionStatement()
 	case token.RETURN:
 		stmt := p.parseReturnStatement()
@@ -43,6 +36,8 @@ func (p *Parser) parseStatement() ast.Statement {
 		return stmt
 	case token.FN:
 		return p.parseFunctionStatement()
+	case token.STRUCT:
+		return p.parseStructStatement()
 	default:
 		return p.parseExpressionStatement()
 	}
@@ -72,47 +67,12 @@ func (p *Parser) parseDeclareStatement() *ast.DeclareStatement {
 	p.nextToken()
 
 	if p.curTokenIs(token.COLON) {
-		p.nextToken()
-
-		if p.curTokenIs(token.LBRACKET) {
-			p.nextToken()
-			if p.curTokenIs(token.INT_LITERAL) {
-				length := p.curToken.Literal
-				p.nextToken()
-				if !p.curTokenIs(token.RBRACKET) {
-					return nil
-				}
-
-				p.nextToken()
-				builtin, ok := types.GetBuiltin(p.curToken.Literal)
-				if !ok {
-					return nil
-				}
-				parsedInt, err := strconv.ParseInt(length, 10, 0)
-				if err != nil {
-					return nil
-				}
-
-				stmt.Type = types.NewArray(builtin, int(parsedInt))
-			} else if p.curTokenIs(token.RBRACKET) {
-				p.nextToken()
-				builtin, ok := types.GetBuiltin(p.curToken.Literal)
-				if !ok {
-					return nil
-				}
-
-				stmt.Type = types.NewSlice(builtin)
-			} else {
-				return nil
-			}
-		} else {
-			builtin, ok := types.GetBuiltin(p.curToken.Literal)
-			if !ok {
-				return nil
-			}
-
-			stmt.Type = builtin
+		declaredType, ok := p.parseTypeAfterColon()
+		if !ok {
+			return nil
 		}
+
+		stmt.Type = declaredType
 		p.nextToken()
 	}
 
@@ -120,23 +80,6 @@ func (p *Parser) parseDeclareStatement() *ast.DeclareStatement {
 		return nil
 	}
 
-	stmt.Token = p.curToken
-	p.nextToken()
-	stmt.Value = p.parseExpression(LOWEST)
-
-	if p.peekTokenIs(token.SEMICOLON) {
-		p.nextToken()
-	}
-
-	return stmt
-}
-
-func (p *Parser) parseAssignStatement() *ast.AssignStatement {
-	stmt := &ast.AssignStatement{
-		Name: &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal},
-	}
-
-	p.nextToken()
 	stmt.Token = p.curToken
 	p.nextToken()
 	stmt.Value = p.parseExpression(LOWEST)
@@ -179,6 +122,9 @@ func (p *Parser) parseReturnStatement() *ast.ReturnStatement {
 func (p *Parser) parseExpressionStatement() ast.Statement {
 	stmt := &ast.ExpressionStatement{Token: p.curToken}
 	stmt.Expression = p.parseExpression(LOWEST)
+	if stmt.Expression == nil {
+		return nil
+	}
 
 	if target, ok := stmt.Expression.(*ast.TupleTargetExpression); ok &&
 		(p.peekTokenIs(token.DECLARE) || p.peekTokenIs(token.ASSIGN)) {
@@ -200,6 +146,38 @@ func (p *Parser) parseExpressionStatement() ast.Statement {
 	if _, ok := stmt.Expression.(*ast.TupleTargetExpression); ok {
 		p.errors = append(p.errors, "tuple target must be followed by ':=' or '='")
 		return nil
+	}
+
+	if p.peekTokenIs(token.ASSIGN) {
+		switch stmt.Expression.(type) {
+		case *ast.Identifier, *ast.MemberExpression:
+		default:
+			p.errors = append(p.errors, "assignment target must be an identifier or member expression")
+			return nil
+		}
+
+		p.nextToken()
+		operator := p.curToken
+		p.nextToken()
+		value := p.parseExpression(LOWEST)
+		if value == nil {
+			return nil
+		}
+
+		assignment := &ast.AssignStatement{
+			Token:  operator,
+			Target: stmt.Expression,
+			Value:  value,
+		}
+		if name, ok := stmt.Expression.(*ast.Identifier); ok {
+			assignment.Name = name
+		}
+
+		if p.peekTokenIs(token.SEMICOLON) {
+			p.nextToken()
+		}
+
+		return assignment
 	}
 
 	if p.peekTokenIs(token.SEMICOLON) {

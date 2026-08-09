@@ -5,7 +5,6 @@ import (
 
 	"github.com/esweby/primordial_lang/ast"
 	"github.com/esweby/primordial_lang/token"
-	"github.com/esweby/primordial_lang/types"
 )
 
 func (p *Parser) parseFunctionStatement() ast.Statement {
@@ -104,12 +103,12 @@ func (p *Parser) parseFunctionParameters() ([]*ast.Parameter, error) {
 		param.Name = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
 
 		p.nextToken()
-		builtin, ok := types.GetBuiltin(p.curToken.Literal)
+		paramType, ok := p.parseCurrentType()
 		if !ok {
 			return nil, fmt.Errorf("unknown type %s", p.curToken.Literal)
 		}
 
-		param.Type = builtin
+		param.Type = paramType
 		params = append(params, param)
 
 		if p.peekTokenIs(token.RPAREN) {
@@ -139,12 +138,12 @@ func (p *Parser) parseReturnTypes() ([]*ast.ReturnType, error) {
 			return nil, fmt.Errorf("expected identifier return type, got %v", p.curToken.Type)
 		}
 
-		builtin, ok := types.GetBuiltin(p.curToken.Literal)
+		returnType, ok := p.parseCurrentType()
 		if !ok {
 			return nil, fmt.Errorf("unknown type %s", p.curToken.Literal)
 		}
 
-		returnTypes = append(returnTypes, &ast.ReturnType{Type: builtin})
+		returnTypes = append(returnTypes, &ast.ReturnType{Type: returnType})
 
 		if p.peekTokenIs(token.LBRACE) {
 			break

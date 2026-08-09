@@ -88,7 +88,7 @@ func (sa *SemanticAnalyzer) analyzeAssignmentStatement(stmt *ast.AssignStatement
 	// The LHS must be an identifier (for now).
 	ident := stmt.Name
 	if ident == nil {
-		// handle error
+		sa.error("member assignment is not supported yet")
 		return types.InvalidType
 	}
 

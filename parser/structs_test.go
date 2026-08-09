@@ -13,11 +13,11 @@ func TestStructDeclareStatement(t *testing.T) {
 	age: int32;
 	name: string;
 
-	pub fn new(age int32, firstName string, lastName string): Person {
+	fn new(age int32, firstName string, lastName string): Person {
 		return Person{
 			age,
 			name: firstName + " " + lastName,
-		}
+		};
 	}
 
 	impl {
@@ -25,7 +25,7 @@ func TestStructDeclareStatement(t *testing.T) {
 
 		fn incrementAge() { self.age = self.age + 1; }
 	}
-}`;
+}`
 
 	l := lexer.New(input)
 	p := New(l)
@@ -54,12 +54,12 @@ func TestStructDeclareStatement(t *testing.T) {
 		t.Errorf("structStmt.Name.Value not 'Person'. Got=%s", structStmt.Name.Value)
 	}
 
-	fieldTests := []struct{
+	fieldTests := []struct {
 		name string
-		t types.Type
-	}{ 
-		{ "age", types.Int32Type },
-		{ "name", types.StringType },
+		t    types.Type
+	}{
+		{"age", types.Int32Type},
+		{"name", types.StringType},
 	}
 
 	fields := structStmt.Fields
@@ -88,16 +88,15 @@ func TestStructDeclareStatement(t *testing.T) {
 		}
 	}
 
-	
-	typeFnTests := []struct{
-		name string
-		numParams int
-		numReturn int
+	typeFnTests := []struct {
+		name          string
+		numParams     int
+		numReturn     int
 		numStatements int
 	}{
-		{ "new", 3, 1, 1 },
+		{"new", 3, 1, 1},
 	}
-		
+
 	typeFns := structStmt.TypeFunctions
 	if len(typeFns) != len(typeFnTests) {
 		t.Fatalf("stmt.typeFns length not '1'. Got=%d", len(typeFns))
@@ -106,7 +105,7 @@ func TestStructDeclareStatement(t *testing.T) {
 	for i, tt := range typeFnTests {
 		fn := typeFns[i]
 		if fn.Name.Value != tt.name {
-			t.Errorf("typeFnTest %d failed: expected %s name. got=%s", i, 
+			t.Errorf("typeFnTest %d failed: expected %s name. got=%s", i,
 				tt.name, fn.Name.Value)
 		}
 
@@ -116,6 +115,9 @@ func TestStructDeclareStatement(t *testing.T) {
 
 		if len(fn.ReturnTypes) != tt.numReturn {
 			t.Errorf("typeFnTest %d failed: expected %d returnTypes. got=%d", i, tt.numReturn, len(fn.ReturnTypes))
+		}
+		if fn.ReturnTypes[0].Type.Name() != "Person" {
+			t.Errorf("typeFnTest %d failed: expected named return type Person. got=%s", i, fn.ReturnTypes[0].Type.Name())
 		}
 
 		if len(fn.Body.Statements) != tt.numStatements {
@@ -127,16 +129,16 @@ func TestStructDeclareStatement(t *testing.T) {
 		t.Fatalf("structStmt.Impl is nil, expected to be ast.StructImplBlock")
 	}
 
-	implMethodTests := []struct{
-		name string
-		numParams int
-		numReturn int
+	implMethodTests := []struct {
+		name          string
+		numParams     int
+		numReturn     int
 		numStatements int
 	}{
-		{ "getName", 0, 1, 1 },
-		{ "incrementAge", 0, 0, 1 },
+		{"getName", 0, 1, 1},
+		{"incrementAge", 0, 0, 1},
 	}
-	
+
 	implMethods := structStmt.Impl.Methods
 	if len(implMethods) != len(implMethodTests) {
 		t.Fatalf("stmt.typeFns length not '2'. Got=%d", len(implMethods))
@@ -145,7 +147,7 @@ func TestStructDeclareStatement(t *testing.T) {
 	for i, tt := range implMethodTests {
 		fn := implMethods[i]
 		if fn.Name.Value != tt.name {
-			t.Errorf("implMethodTests %d failed: expected %s name. got=%s", i, 
+			t.Errorf("implMethodTests %d failed: expected %s name. got=%s", i,
 				tt.name, fn.Name.Value)
 		}
 
@@ -161,5 +163,71 @@ func TestStructDeclareStatement(t *testing.T) {
 			t.Errorf("implMethodTests %d failed: expected %d statements. got=%d", i, tt.numStatements, len(fn.Body.Statements))
 		}
 	}
-	
+
+}
+
+func TestStructLiteralFields(t *testing.T) {
+	input := `person := Person{
+		age,
+		name: firstName + " " + lastName,
+	};`
+	p := New(lexer.New(input))
+	program := p.ParseProgram()
+	requireNoParserErrors(t, p)
+	requireStatementCount(t, program.Statements, 1)
+
+	declaration, ok := program.Statements[0].(*ast.DeclareStatement)
+	if !ok {
+		t.Fatalf("expected DeclareStatement, got %T", program.Statements[0])
+	}
+
+	literal, ok := declaration.Value.(*ast.StructLiteral)
+	if !ok {
+		t.Fatalf("expected StructLiteral, got %T", declaration.Value)
+	}
+	if literal.Name.Value != "Person" {
+		t.Fatalf("expected struct literal name Person, got %s", literal.Name.Value)
+	}
+	if len(literal.Fields) != 2 {
+		t.Fatalf("expected 2 struct literal fields, got %d", len(literal.Fields))
+	}
+
+	age := literal.Fields[0]
+	if !age.Shorthand || age.Name.Value != "age" {
+		t.Fatalf("expected shorthand age field, got %s", age.String())
+	}
+	if value, ok := age.Value.(*ast.Identifier); !ok || value.Value != "age" {
+		t.Fatalf("expected shorthand age value, got %T", age.Value)
+	}
+
+	name := literal.Fields[1]
+	if name.Shorthand || name.Name.Value != "name" {
+		t.Fatalf("expected explicit name field, got %s", name.String())
+	}
+	if name.Value.String() != "((firstName +  ) + lastName)" {
+		t.Fatalf("unexpected explicit field value: %s", name.Value.String())
+	}
+}
+
+func TestMemberAssignmentTarget(t *testing.T) {
+	p := New(lexer.New(`self.age = self.age + 1;`))
+	program := p.ParseProgram()
+	requireNoParserErrors(t, p)
+	requireStatementCount(t, program.Statements, 1)
+
+	assignment, ok := program.Statements[0].(*ast.AssignStatement)
+	if !ok {
+		t.Fatalf("expected AssignStatement, got %T", program.Statements[0])
+	}
+
+	target, ok := assignment.Target.(*ast.MemberExpression)
+	if !ok {
+		t.Fatalf("expected MemberExpression assignment target, got %T", assignment.Target)
+	}
+	if target.String() != "self.age" {
+		t.Fatalf("expected assignment target self.age, got %s", target.String())
+	}
+	if assignment.Value.String() != "(self.age + 1)" {
+		t.Fatalf("unexpected assignment value: %s", assignment.Value.String())
+	}
 }

@@ -48,12 +48,11 @@ func (ss *StructStatement) String() string {
 }
 
 type StructField struct {
-	Token   token.Token
-	Name    *Identifier
-	Mutable bool
-	Public  bool
-	Type    types.Type
-	Value   Expression
+	Token  token.Token
+	Name   *Identifier
+	Public bool
+	Type   types.Type
+	Value  Expression
 }
 
 func (sf *StructField) TokenLiteral() string {
@@ -67,16 +66,12 @@ func (sf *StructField) String() string {
 		out.WriteString("pub ")
 	}
 
-	if sf.Mutable {
-		out.WriteString("mut ")
-	}
-
 	out.WriteString(sf.Name.Value)
 	out.WriteString(": ")
 	out.WriteString(sf.Type.Name())
 
 	if sf.Value != nil {
-		out.WriteString(" := ")
+		out.WriteString(" = ")
 		out.WriteString(sf.Value.String())
 	}
 
@@ -109,8 +104,8 @@ func (sib *StructImplBlock) String() string {
 }
 
 type StructLiteral struct {
-	Token token.Token
-	Name *Identifier
+	Token  token.Token
+	Name   *Identifier
 	Fields []*StructLiteralField
 }
 
@@ -126,7 +121,7 @@ func (sl *StructLiteral) String() string {
 	out.WriteString(sl.Name.String())
 	out.WriteString(" {")
 
-	if len(sl.Fields) > 0 { 
+	if len(sl.Fields) > 0 {
 		out.WriteString("\n")
 		for _, field := range sl.Fields {
 			out.WriteString(field.String())
@@ -139,9 +134,9 @@ func (sl *StructLiteral) String() string {
 }
 
 type StructLiteralField struct {
-	Token token.Token
-	Name *Identifier
-	Value Expression
+	Token     token.Token
+	Name      *Identifier
+	Value     Expression
 	Shorthand bool
 }
 

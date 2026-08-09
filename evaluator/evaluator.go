@@ -49,6 +49,9 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 	case *ast.TupleDeclareStatement:
 		return evalTupleDeclaration(node, env)
 	case *ast.AssignStatement:
+		if node.Name == nil {
+			return newError("member assignment is not supported yet")
+		}
 		value := Eval(node.Value, env)
 		if isError(value) {
 			return value

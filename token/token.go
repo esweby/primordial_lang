@@ -51,6 +51,8 @@ const (
 
 	// Keywords
 	FN
+	STRUCT
+	IMPL
 	TRUE
 	FALSE
 	IF
@@ -96,6 +98,8 @@ var tokenNames = [...]string{
 	RBRACKET:  "RBRACKET",
 	// Keywords
 	FN:     "FN",
+	STRUCT: "STRUCT",
+	IMPL:   "IMPL",
 	TRUE:   "TRUE",
 	FALSE:  "FALSE",
 	IF:     "IF",
@@ -108,6 +112,8 @@ var tokenNames = [...]string{
 
 var keywords = map[string]TokenType{
 	"fn":     FN,
+	"struct": STRUCT,
+	"impl":   IMPL,
 	"true":   TRUE,
 	"false":  FALSE,
 	"if":     IF,

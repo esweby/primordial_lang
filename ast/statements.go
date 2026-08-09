@@ -65,9 +65,10 @@ func (dl *DeclareStatement) GetType() types.Type {
 }
 
 type AssignStatement struct {
-	Token token.Token
-	Name  *Identifier
-	Value Expression
+	Token  token.Token
+	Name   *Identifier
+	Target Expression
+	Value  Expression
 }
 
 func (as *AssignStatement) statementNode() {}
@@ -77,7 +78,12 @@ func (as *AssignStatement) TokenLiteral() string {
 }
 
 func (as *AssignStatement) String() string {
-	return fmt.Sprintf("%s = %s", as.Name.String(), as.Value.String())
+	target := as.Target
+	if target == nil {
+		target = as.Name
+	}
+
+	return fmt.Sprintf("%s = %s", target.String(), as.Value.String())
 }
 
 type ReturnStatement struct {
