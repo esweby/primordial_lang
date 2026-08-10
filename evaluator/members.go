@@ -1,8 +1,11 @@
 package evaluator
 
 import (
+	"math/big"
+
 	"github.com/esweby/primordial_lang/ast"
 	"github.com/esweby/primordial_lang/object"
+	"github.com/esweby/primordial_lang/types"
 )
 
 func evalMemberProperty(
@@ -18,17 +21,22 @@ func evalMemberProperty(
 	case *object.Array:
 		switch exp.Name.Value {
 		case "length":
-			return &object.Integer{
-				Value: int64(len(receiver.Elements)),
-			}
+			return newIntegerObject(big.NewInt(int64(len(receiver.Elements))), types.Int64Type)
 		}
 
 	case *object.Slice:
 		switch exp.Name.Value {
 		case "length":
-			return &object.Integer{
-				Value: int64(len(receiver.Elements)),
+			return newIntegerObject(big.NewInt(int64(len(receiver.Elements))), types.Int64Type)
+		}
+	case *object.Struct:
+		value, ok := receiver.Fields[exp.Name.Value]
+		if ok {
+			field := findStructField(receiver.Definition, exp.Name.Value)
+			if field != nil && !field.Public && !hasStructAccess(receiver, env) {
+				return newError("field %s.%s is private", receiver.Name, exp.Name.Value)
 			}
+			return value
 		}
 	}
 
@@ -68,6 +76,28 @@ func evalMemberCall(
 			exp.Name.Value,
 			args,
 		)
+
+	case *object.StructDefinition:
+		function := findStructFunction(receiver.Declaration.TypeFunctions, exp.Name.Value)
+		if function == nil {
+			return newError("struct %s has no type function %s", receiver.Declaration.Name.Value, exp.Name.Value)
+		}
+		functionEnv := object.NewEnclosedEnvironment(receiver.Env)
+		functionEnv.SetStructContext(receiver)
+		return applyFunction(newStructFunction(function, functionEnv), args)
+
+	case *object.Struct:
+		if receiver.Definition == nil || receiver.Definition.Declaration.Impl == nil {
+			return newError("struct %s has no method %s", receiver.Name, exp.Name.Value)
+		}
+		method := findStructFunction(receiver.Definition.Declaration.Impl.Methods, exp.Name.Value)
+		if method == nil {
+			return newError("struct %s has no method %s", receiver.Name, exp.Name.Value)
+		}
+		methodEnv := object.NewEnclosedEnvironment(receiver.Definition.Env)
+		methodEnv.Set("self", receiver)
+		methodEnv.SetStructContext(receiver.Definition)
+		return applyFunction(newStructFunction(method, methodEnv), args)
 
 	default:
 		return newError(
@@ -130,5 +160,77 @@ func evalArrayMethod(
 			"array has no method %s",
 			name,
 		)
+	}
+}
+
+func evalMemberAssignment(
+	target *ast.MemberExpression,
+	valueExpression ast.Expression,
+	env *object.Environment,
+) object.Object {
+	receiverObject := Eval(target.Receiver, env)
+	if isError(receiverObject) {
+		return receiverObject
+	}
+	receiver, ok := receiverObject.(*object.Struct)
+	if !ok {
+		return newError("cannot assign member %s on %s", target.Name.Value, receiverObject.Type())
+	}
+
+	field := findStructField(receiver.Definition, target.Name.Value)
+	if field == nil {
+		return newError("struct %s has no field %s", receiver.Name, target.Name.Value)
+	}
+	if !field.Public && !hasStructAccess(receiver, env) {
+		return newError("field %s.%s is private", receiver.Name, target.Name.Value)
+	}
+	if !hasStructAccess(receiver, env) {
+		return newError("cannot assign to field outside its struct: %s", target.Name.Value)
+	}
+
+	value := Eval(valueExpression, env)
+	if isError(value) {
+		return value
+	}
+	coerced, err := coerceRuntimeArgument(value, field.Type)
+	if err != nil {
+		return newError("assignment to %s.%s: %s", receiver.Name, target.Name.Value, err.Error())
+	}
+	receiver.Fields[target.Name.Value] = coerced
+	return nil
+}
+
+func hasStructAccess(receiver *object.Struct, env *object.Environment) bool {
+	return env.StructContext() == receiver.Definition
+}
+
+func findStructField(definition *object.StructDefinition, name string) *ast.StructField {
+	if definition == nil || definition.Declaration == nil {
+		return nil
+	}
+	for _, field := range definition.Declaration.Fields {
+		if field.Name.Value == name {
+			return field
+		}
+	}
+	return nil
+}
+
+func findStructFunction(functions []*ast.FunctionStatement, name string) *ast.FunctionStatement {
+	for _, function := range functions {
+		if function.Name.Value == name {
+			return function
+		}
+	}
+	return nil
+}
+
+func newStructFunction(function *ast.FunctionStatement, env *object.Environment) *object.Function {
+	return &object.Function{
+		Name:        function.Name.Value,
+		Parameters:  function.Parameters,
+		ReturnTypes: function.ReturnTypes,
+		Body:        function.Body,
+		Env:         env,
 	}
 }

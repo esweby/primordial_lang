@@ -53,7 +53,7 @@ func TestAnalyzeCollectionMemberMethods(t *testing.T) {
 	}{
 		{
 			name:  "slice append",
-			input: `values := []int32{}; values.append(1);`,
+			input: `mut values := []int32{}; values.append(1);`,
 		},
 		{
 			name:         "array toSlice",

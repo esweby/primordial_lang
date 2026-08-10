@@ -1,8 +1,23 @@
 package object
 
 type Environment struct {
-	store map[string]Object
-	outer *Environment
+	store         map[string]Object
+	outer         *Environment
+	structContext *StructDefinition
+}
+
+func (e *Environment) SetStructContext(definition *StructDefinition) {
+	e.structContext = definition
+}
+
+func (e *Environment) StructContext() *StructDefinition {
+	if e.structContext != nil {
+		return e.structContext
+	}
+	if e.outer != nil {
+		return e.outer.StructContext()
+	}
+	return nil
 }
 
 func NewEnvironment() *Environment {

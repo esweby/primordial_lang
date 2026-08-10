@@ -125,10 +125,27 @@ var keywords = map[string]TokenType{
 }
 
 type Token struct {
-	Type    TokenType
-	Literal string
-	Line    int
-	Column  int
+	Type     TokenType
+	Literal  string
+	Line     int
+	Column   int
+	Span     Span
+	LexError string
+}
+
+// Position identifies a byte offset and its one-based line and column in the
+// source text. Offsets are zero-based so that spans can be used to slice the
+// original input directly.
+type Position struct {
+	Offset int
+	Line   int
+	Column int
+}
+
+// Span is a half-open source range: Start is inclusive and End is exclusive.
+type Span struct {
+	Start Position
+	End   Position
 }
 
 func GetTokenName(tokenType int) string {

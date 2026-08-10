@@ -1,15 +1,18 @@
 package types
 
+import "math/big"
+
 var InvalidType = &Invalid{}
 var BoolType = &Bool{}
-var Int8Type = &Int8{}
-var Int16Type = &Int16{}
-var Int32Type = &Int32{}
-var Int64Type = &Int64{}
-var UInt8Type = &UInt8{}
-var UInt16Type = &UInt16{}
-var UInt32Type = &UInt32{}
-var UInt64Type = &UInt64{}
+var Int8Type = NewInteger("int8", 8, true)
+var Int16Type = NewInteger("int16", 16, true)
+var Int32Type = NewInteger("int32", 32, true)
+var Int64Type = NewInteger("int64", 64, true)
+var UInt8Type = NewInteger("uint8", 8, false)
+var UInt16Type = NewInteger("uint16", 16, false)
+var UInt32Type = NewInteger("uint32", 32, false)
+var UInt64Type = NewInteger("uint64", 64, false)
+var UntypedIntegerType = &UntypedInteger{}
 var Float32Type = &Float32{}
 var Float64Type = &Float64{}
 var StringType = &String{}
@@ -47,7 +50,7 @@ func NeutralValue(t Type) (any, bool) {
 
 	switch t.Kind() {
 	case KindInteger:
-		return int64(0), true
+		return big.NewInt(0), true
 	case KindFloat:
 		return float64(0), true
 	case KindString:
@@ -77,7 +80,11 @@ func IsInvalid(t Type) bool {
 }
 
 func IsInteger(t Type) bool {
-	return t.Kind() == KindInteger
+	return t != nil && t.Kind() == KindInteger
+}
+
+func IsUntypedInteger(t Type) bool {
+	return t != nil && t.Kind() == KindUntypedInteger
 }
 
 func IsFloat(t Type) bool {
@@ -85,7 +92,7 @@ func IsFloat(t Type) bool {
 }
 
 func IsNumeric(t Type) bool {
-	return t.Kind() == KindInteger || t.Kind() == KindFloat
+	return t != nil && (t.Kind() == KindInteger || t.Kind() == KindUntypedInteger || t.Kind() == KindFloat)
 }
 
 func IsString(t Type) bool {
@@ -123,9 +130,6 @@ func IsVoid(t Type) bool {
 func IsAssignable(to, from Type) bool {
 	if to == nil || from == nil {
 		return false
-	}
-	if IsInteger(to) && IsInteger(from) {
-		return true
 	}
 	return IsTypesEqual(to, from)
 }

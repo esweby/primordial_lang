@@ -2,6 +2,7 @@ package parser
 
 import (
 	"fmt"
+	"math/big"
 	"testing"
 
 	"github.com/esweby/primordial_lang/ast"
@@ -60,8 +61,8 @@ func TestParseIntegerLiteral(t *testing.T) {
 		t.Fatalf("exp not *ast.Identifier. got=%T", stmt.Expression)
 	}
 
-	if literal.Value != 5 {
-		t.Errorf("literal.Value not %d. Got=%d", 5, literal.Value)
+	if literal.Value.Cmp(big.NewInt(5)) != 0 {
+		t.Errorf("literal.Value not %d. Got=%s", 5, literal.Value.String())
 	}
 
 	if literal.TokenLiteral() != "5" {
@@ -254,8 +255,8 @@ func testIntegerLiteral(t *testing.T, il ast.Expression, value int64) bool {
 		return false
 	}
 
-	if inte.Value != value {
-		t.Errorf("inte.Value not %d. Got=%d", value, inte.Value)
+	if inte.Value.Cmp(big.NewInt(value)) != 0 {
+		t.Errorf("inte.Value not %d. Got=%s", value, inte.Value.String())
 		return false
 	}
 

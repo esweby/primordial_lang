@@ -27,23 +27,25 @@ const (
 )
 
 var precedences = map[token.TokenType]int{
-	token.EQUALS:        EQUALS,
-	token.NOT_EQUALS:    EQUALS,
-	token.LTAG:          LESSGREATER,
-	token.RTAG:          LESSGREATER,
-	token.PLUS:          SUM,
-	token.MINUS:         SUM,
-	token.FORWARD_SLASH: PRODUCT,
-	token.ASTERIK:       PRODUCT,
-	token.LPAREN:        CALL,
-	token.LBRACE:        CALL,
-	token.DOT:           DOT,
-	token.LBRACKET:      INDEX,
+	token.EQUALS:                 EQUALS,
+	token.NOT_EQUALS:             EQUALS,
+	token.LTAG:                   LESSGREATER,
+	token.RTAG:                   LESSGREATER,
+	token.LESS_THAN_OR_EQUALS:    LESSGREATER,
+	token.GREATER_THAN_OR_EQUALS: LESSGREATER,
+	token.PLUS:                   SUM,
+	token.MINUS:                  SUM,
+	token.FORWARD_SLASH:          PRODUCT,
+	token.ASTERIK:                PRODUCT,
+	token.LPAREN:                 CALL,
+	token.LBRACE:                 CALL,
+	token.DOT:                    DOT,
+	token.LBRACKET:               INDEX,
 }
 
 type Parser struct {
-	l      *lexer.Lexer
-	errors []string
+	l           *lexer.Lexer
+	diagnostics []Diagnostic
 
 	curToken  token.Token
 	peekToken token.Token
@@ -54,8 +56,8 @@ type Parser struct {
 
 func New(l *lexer.Lexer) *Parser {
 	p := &Parser{
-		l:      l,
-		errors: []string{},
+		l:           l,
+		diagnostics: []Diagnostic{},
 	}
 
 	p.registerPrefixFns()
@@ -154,6 +156,8 @@ func (p *Parser) registerInfixFns() {
 	p.registerInfix(token.NOT_EQUALS, p.parseInfixExpression)
 	p.registerInfix(token.LTAG, p.parseInfixExpression)
 	p.registerInfix(token.RTAG, p.parseInfixExpression)
+	p.registerInfix(token.LESS_THAN_OR_EQUALS, p.parseInfixExpression)
+	p.registerInfix(token.GREATER_THAN_OR_EQUALS, p.parseInfixExpression)
 	p.registerInfix(token.LPAREN, p.parseCallExpression)
 	p.registerInfix(token.LBRACE, p.parseStructLiteral)
 	p.registerInfix(token.DOT, p.parseMemberExpression)
@@ -161,20 +165,37 @@ func (p *Parser) registerInfixFns() {
 }
 
 func (p *Parser) Errors() []string {
-	return p.errors
+	errors := make([]string, len(p.diagnostics))
+	for i, diagnostic := range p.diagnostics {
+		errors[i] = diagnostic.Error()
+	}
+	return errors
+}
+
+func (p *Parser) Diagnostics() []Diagnostic {
+	diagnostics := make([]Diagnostic, len(p.diagnostics))
+	for i, diagnostic := range p.diagnostics {
+		diagnostics[i] = diagnostic
+		diagnostics[i].Expected = append([]token.TokenType(nil), diagnostic.Expected...)
+	}
+	return diagnostics
 }
 
 func (p *Parser) noPrefixParseFnError(t token.TokenType) {
-	msg := fmt.Sprintf("no prefix parse function for %s found", token.GetTokenName(int(t)))
-	p.errors = append(p.errors, msg)
+	if t == token.ILLEGAL {
+		p.addLexicalDiagnostic(p.curToken)
+		return
+	}
+	msg := fmt.Sprintf("expected expression, found %s", describeToken(p.curToken))
+	p.addDiagnostic("P1002", msg, p.curToken)
 }
 
 func (p *Parser) peekError(t token.TokenType) {
 	msg := fmt.Sprintf(
-		"expected next token to be %s, but got %s instead",
+		"expected %s, found %s",
 		token.GetTokenName(int(t)),
-		token.GetTokenName(int(p.peekToken.Type)),
+		describeToken(p.peekToken),
 	)
 
-	p.errors = append(p.errors, msg)
+	p.addDiagnostic("P1001", msg, p.peekToken, t)
 }

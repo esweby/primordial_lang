@@ -13,10 +13,16 @@ type MemberDefinition struct {
 	Parameters      []Type
 	ReturnTypes     []Type
 	MutatesReceiver bool
+	Public          bool
+	StructOwner     *Struct
 }
 
 type MemberProvider interface {
 	LookupMember(string) (MemberDefinition, bool)
+}
+
+type TypeMemberProvider interface {
+	LookupTypeMember(string) (MemberDefinition, bool)
 }
 
 func (s *Slice) LookupMember(name string) (MemberDefinition, bool) {

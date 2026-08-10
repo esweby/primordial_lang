@@ -9,24 +9,28 @@ import (
 
 // BlockResult captures the result of analyzing a block of statements.
 type BlockResult struct {
-	Type    types.Type
-	Returns bool
+	Type       types.Type
+	Returns    bool
+	Expression ast.Expression
 }
 
 // SemanticAnalyzer performs type checking and symbol resolution.
 type SemanticAnalyzer struct {
-	program     *ast.Program
-	errors      []error
-	current     *SymbolTable
-	returnTypes []types.Type
+	program            *ast.Program
+	errors             []error
+	current            *SymbolTable
+	returnTypes        []types.Type
+	currentStruct      *types.Struct
+	structDeclarations map[*ast.StructStatement]*types.Struct
 }
 
 // NewSemanticAnalyzer creates a new analyzer.
 func NewSemanticAnalyzer(program *ast.Program, symbols *SymbolTable) *SemanticAnalyzer {
 	return &SemanticAnalyzer{
-		program: program,
-		errors:  []error{},
-		current: symbols.Clone(),
+		program:            program,
+		errors:             []error{},
+		current:            symbols.Clone(),
+		structDeclarations: make(map[*ast.StructStatement]*types.Struct),
 	}
 }
 
@@ -43,7 +47,18 @@ func (sa *SemanticAnalyzer) Analyze() []error {
 	}
 
 	for _, stmt := range stmts {
-		sa.analyzeStatement(stmt)
+		if declaration, ok := stmt.(*ast.StructStatement); ok {
+			sa.predeclareStruct(declaration)
+		}
+	}
+
+	for _, stmt := range stmts {
+		statementType := sa.analyzeStatement(stmt)
+		if expressionStatement, ok := stmt.(*ast.ExpressionStatement); ok && types.IsUntypedInteger(statementType) {
+			if _, err := sa.defaultInteger(expressionStatement.Expression, statementType); err != nil {
+				sa.error(err.Error())
+			}
+		}
 	}
 
 	return sa.errors
@@ -78,10 +93,19 @@ func (sa *SemanticAnalyzer) analyzeStatement(stmt ast.Statement) types.Type {
 	case *ast.TupleAssignStatement:
 		return sa.analyzeTupleAssignmentStatement(s)
 
+	case *ast.StructStatement:
+		return sa.analyzeStructStatement(s)
+
 	default:
 		sa.error(fmt.Sprintf("analyzeStatement received unexpected statement: %T", stmt))
 		return nil
 	}
+}
+
+func (sa *SemanticAnalyzer) analyzeScopedBlock(block *ast.BlockExpression) BlockResult {
+	sa.enterScope()
+	defer sa.exitScope()
+	return sa.analyzeBlock(block)
 }
 
 func (sa *SemanticAnalyzer) enterScope() {

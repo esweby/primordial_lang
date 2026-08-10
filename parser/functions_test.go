@@ -78,15 +78,15 @@ func TestParseFunctionParameters(t *testing.T) {
 		{
 			input: `b := fn(x int32) {}`,
 			expected: expectedType{
-				newParameter("x", &types.Int32{}),
+				newParameter("x", types.Int32Type),
 			},
 		},
 		{
 			input: `c := fn(x int32, y int32, z int32) {}`,
 			expected: expectedType{
-				newParameter("x", &types.Int32{}),
-				newParameter("y", &types.Int32{}),
-				newParameter("z", &types.Int32{}),
+				newParameter("x", types.Int32Type),
+				newParameter("y", types.Int32Type),
+				newParameter("z", types.Int32Type),
 			},
 		},
 	}

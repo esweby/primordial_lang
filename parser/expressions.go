@@ -2,7 +2,7 @@ package parser
 
 import (
 	"fmt"
-	"strconv"
+	"math/big"
 
 	"github.com/esweby/primordial_lang/ast"
 	"github.com/esweby/primordial_lang/token"
@@ -15,7 +15,12 @@ func (p *Parser) parseExpression(precedence int) ast.Expression {
 		return nil
 	}
 
+	beforePrefix := len(p.diagnostics)
 	leftExp := prefix()
+	if leftExp == nil {
+		p.ensureDiagnostic(beforePrefix, "P1002", "could not parse expression beginning with "+describeToken(p.curToken), p.curToken)
+		return nil
+	}
 	for !p.peekTokenIs(token.SEMICOLON) && precedence < p.peekPrecedence() {
 		infix := p.infixParseFns[p.peekToken.Type]
 		if infix == nil {
@@ -24,6 +29,9 @@ func (p *Parser) parseExpression(precedence int) ast.Expression {
 
 		p.nextToken()
 		leftExp = infix(leftExp)
+		if leftExp == nil {
+			return nil
+		}
 	}
 
 	return leftExp
@@ -32,13 +40,18 @@ func (p *Parser) parseExpression(precedence int) ast.Expression {
 func (p *Parser) parseGroupedExpression() ast.Expression {
 	openToken := p.curToken
 	p.nextToken()
+	before := len(p.diagnostics)
 	exp := p.parseExpression(LOWEST)
+	if exp == nil {
+		p.ensureDiagnostic(before, "P1003", "expected expression after '('", p.curToken)
+		return nil
+	}
 
 	if p.peekTokenIs(token.COMMA) {
 		names := []*ast.Identifier{}
 		first, ok := exp.(*ast.Identifier)
 		if !ok {
-			p.errors = append(p.errors, "tuple assignment target must contain only identifiers")
+			p.addDiagnostic("P1604", "tuple assignment target must contain only identifiers", openToken)
 			return nil
 		}
 		names = append(names, first)
@@ -48,7 +61,7 @@ func (p *Parser) parseGroupedExpression() ast.Expression {
 			p.nextToken()
 			name, ok := p.parseIdentifier().(*ast.Identifier)
 			if !ok || !p.curTokenIs(token.IDENT) {
-				p.errors = append(p.errors, "tuple assignment target must contain only identifiers")
+				p.addDiagnostic("P1604", "tuple assignment target must contain only identifiers", p.curToken, token.IDENT)
 				return nil
 			}
 			names = append(names, name)
@@ -74,7 +87,12 @@ func (p *Parser) parsePrefixExpression() ast.Expression {
 	}
 
 	p.nextToken()
+	before := len(p.diagnostics)
 	expression.Right = p.parseExpression(PREFIX)
+	if expression.Right == nil {
+		p.ensureDiagnostic(before, "P1004", "expected expression after prefix operator", p.curToken)
+		return nil
+	}
 	return expression
 }
 
@@ -87,7 +105,12 @@ func (p *Parser) parseInfixExpression(left ast.Expression) ast.Expression {
 
 	precedence := p.curPrecedence()
 	p.nextToken()
+	before := len(p.diagnostics)
 	expression.Right = p.parseExpression(precedence)
+	if expression.Right == nil {
+		p.ensureDiagnostic(before, "P1005", "expected expression after infix operator", p.curToken)
+		return nil
+	}
 	return expression
 }
 
@@ -98,7 +121,12 @@ func (p *Parser) parseIfExpression() ast.Expression {
 		return nil
 	}
 	p.nextToken()
+	before := len(p.diagnostics)
 	expression.Condition = p.parseExpression(LOWEST)
+	if expression.Condition == nil {
+		p.ensureDiagnostic(before, "P1006", "expected condition expression", p.curToken)
+		return nil
+	}
 
 	if !p.expectPeek(token.RPAREN) {
 		return nil
@@ -118,6 +146,7 @@ func (p *Parser) parseIfExpression() ast.Expression {
 		} else if p.curTokenIs(token.IF) {
 			expression.Else = p.parseIfExpression()
 		} else {
+			p.addDiagnostic("P1007", "expected '{' or 'if' after 'else', found "+describeToken(p.curToken), p.curToken, token.LBRACE, token.IF)
 			return nil
 		}
 	}
@@ -136,6 +165,9 @@ func (p *Parser) parseBlockExpression() *ast.BlockExpression {
 		}
 
 		p.nextToken()
+	}
+	if p.curTokenIs(token.EOF) {
+		p.addDiagnostic("P1008", "expected '}' before end of input", p.curToken, token.RBRACE)
 	}
 
 	return block
@@ -159,9 +191,9 @@ func (p *Parser) parseIdentifier() ast.Expression {
 func (p *Parser) parseIntegerLiteral() ast.Expression {
 	literal := &ast.IntegerLiteral{Token: p.curToken}
 
-	value, err := strconv.ParseInt(p.curToken.Literal, 0, 64)
-	if err != nil {
-		p.errors = append(p.errors, fmt.Sprintf("could not parse %q as integer", p.curToken.Literal))
+	value, ok := new(big.Int).SetString(p.curToken.Literal, 10)
+	if !ok {
+		p.addDiagnostic("P1801", fmt.Sprintf("could not parse %q as integer", p.curToken.Literal), p.curToken)
 		return nil
 	}
 

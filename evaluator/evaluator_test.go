@@ -1,6 +1,7 @@
 package evaluator
 
 import (
+	"math/big"
 	"testing"
 
 	"github.com/esweby/primordial_lang/lexer"
@@ -177,7 +178,7 @@ func TestFunctionCall(t *testing.T) {
 		output int64
 	}{
 		{`identity := fn(): int64 { return 4000; } identity()`, 4000},
-		{`fn add(x int32, y int32): int64 { return x + y; }; add(5, 5);`, 10},
+		{`fn add(x int32, y int32): int32 { return x + y; }; add(5, 5);`, 10},
 	}
 
 	for _, tt := range tests {
@@ -522,8 +523,8 @@ func testIntegerObject(t *testing.T, obj object.Object, expected int64) bool {
 		return false
 	}
 
-	if result.Value != expected {
-		t.Errorf("object has wrong value. got=%d, want=%d", result.Value, expected)
+	if result.Value.Cmp(big.NewInt(expected)) != 0 {
+		t.Errorf("object has wrong value. got=%s, want=%d", result.Value.String(), expected)
 		return false
 	}
 

@@ -2,6 +2,7 @@ package types
 
 import (
 	"bytes"
+	"math/big"
 	"strconv"
 	"strings"
 )
@@ -19,6 +20,8 @@ const (
 	KindSlice
 	KindFunction
 	KindTuple
+	KindStruct
+	KindUntypedInteger
 )
 
 type Type interface {
@@ -45,53 +48,46 @@ func (b *Bool) Name() string { return "bool" }
 func (b *Bool) Size() int    { return 1 }
 func (b *Bool) Kind() Kind   { return KindBoolean }
 
-type Int8 struct{}
+type Integer struct {
+	typeName string
+	bits     uint16
+	signed   bool
+}
 
-func (i8 *Int8) Name() string { return "int8" }
-func (i8 *Int8) Size() int    { return 1 }
-func (i8 *Int8) Kind() Kind   { return KindInteger }
+func NewInteger(name string, bits uint16, signed bool) *Integer {
+	return &Integer{typeName: name, bits: bits, signed: signed}
+}
 
-type Int16 struct{}
+func (i *Integer) Name() string { return i.typeName }
+func (i *Integer) Size() int    { return int(i.bits / 8) }
+func (i *Integer) Kind() Kind   { return KindInteger }
+func (i *Integer) Bits() uint16 { return i.bits }
+func (i *Integer) Signed() bool { return i.signed }
 
-func (i16 *Int16) Name() string { return "int16" }
-func (i16 *Int16) Size() int    { return 2 }
-func (i16 *Int16) Kind() Kind   { return KindInteger }
+func (i *Integer) MinValue() *big.Int {
+	if !i.signed {
+		return new(big.Int)
+	}
+	return new(big.Int).Neg(new(big.Int).Lsh(big.NewInt(1), uint(i.bits-1)))
+}
 
-type Int32 struct{}
+func (i *Integer) MaxValue() *big.Int {
+	bits := i.bits
+	if i.signed {
+		bits--
+	}
+	return new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), uint(bits)), big.NewInt(1))
+}
 
-func (i32 *Int32) Name() string { return "int32" }
-func (i32 *Int32) Size() int    { return 4 }
-func (i32 *Int32) Kind() Kind   { return KindInteger }
+func (i *Integer) CanRepresent(value *big.Int) bool {
+	return value != nil && value.Cmp(i.MinValue()) >= 0 && value.Cmp(i.MaxValue()) <= 0
+}
 
-type Int64 struct{}
+type UntypedInteger struct{}
 
-func (i64 *Int64) Name() string { return "int64" }
-func (i64 *Int64) Size() int    { return 8 }
-func (i64 *Int64) Kind() Kind   { return KindInteger }
-
-type UInt8 struct{}
-
-func (ui8 *UInt8) Name() string { return "uint8" }
-func (ui8 *UInt8) Size() int    { return 1 }
-func (ui8 *UInt8) Kind() Kind   { return KindInteger }
-
-type UInt16 struct{}
-
-func (ui16 *UInt16) Name() string { return "uint16" }
-func (ui16 *UInt16) Size() int    { return 2 }
-func (ui16 *UInt16) Kind() Kind   { return KindInteger }
-
-type UInt32 struct{}
-
-func (ui32 *UInt32) Name() string { return "uint32" }
-func (ui32 *UInt32) Size() int    { return 4 }
-func (ui32 *UInt32) Kind() Kind   { return KindInteger }
-
-type UInt64 struct{}
-
-func (ui64 *UInt64) Name() string { return "uint64" }
-func (ui64 *UInt64) Size() int    { return 8 }
-func (ui64 *UInt64) Kind() Kind   { return KindInteger }
+func (u *UntypedInteger) Name() string { return "untyped integer" }
+func (u *UntypedInteger) Size() int    { return 0 }
+func (u *UntypedInteger) Kind() Kind   { return KindUntypedInteger }
 
 type Float32 struct{}
 
@@ -150,6 +146,8 @@ type Array struct {
 	length      int
 }
 
+func (al *Array) ElementType() Type { return al.elementType }
+
 func (al *Array) Length() int { return al.length }
 func (al *Array) Size() int   { return al.length * al.elementType.Size() }
 func (al *Array) Kind() Kind  { return KindArray }
@@ -164,6 +162,8 @@ type Slice struct {
 	elementType Type
 	length      int
 }
+
+func (al *Slice) ElementType() Type { return al.elementType }
 
 func (al *Slice) Length() int { return al.length }
 func (al *Slice) Size() int   { return al.length * al.elementType.Size() }
@@ -204,3 +204,56 @@ type Named struct {
 func (n *Named) Name() string { return n.CustomName }
 func (n *Named) Size() int    { return n.Underlying.Size() }
 func (n *Named) Kind() Kind   { return n.Underlying.Kind() }
+func (n *Named) LookupMember(name string) (MemberDefinition, bool) {
+	provider, ok := n.Underlying.(MemberProvider)
+	if !ok {
+		return MemberDefinition{}, false
+	}
+	return provider.LookupMember(name)
+}
+
+func (n *Named) LookupTypeMember(name string) (MemberDefinition, bool) {
+	provider, ok := n.Underlying.(TypeMemberProvider)
+	if !ok {
+		return MemberDefinition{}, false
+	}
+	return provider.LookupTypeMember(name)
+}
+
+type StructField struct {
+	Name       string
+	Type       Type
+	HasDefault bool
+	Public     bool
+}
+
+type Struct struct {
+	TypeName      string
+	Fields        map[string]StructField
+	TypeFunctions map[string]MemberDefinition
+	Methods       map[string]MemberDefinition
+}
+
+func (s *Struct) Name() string { return s.TypeName }
+func (s *Struct) Size() int    { return 0 }
+func (s *Struct) Kind() Kind   { return KindStruct }
+
+func (s *Struct) LookupMember(name string) (MemberDefinition, bool) {
+	if field, ok := s.Fields[name]; ok {
+		return MemberDefinition{
+			Name:        field.Name,
+			Kind:        MemberProperty,
+			ReturnTypes: []Type{field.Type},
+			Public:      field.Public,
+			StructOwner: s,
+		}, true
+	}
+
+	method, ok := s.Methods[name]
+	return method, ok
+}
+
+func (s *Struct) LookupTypeMember(name string) (MemberDefinition, bool) {
+	function, ok := s.TypeFunctions[name]
+	return function, ok
+}

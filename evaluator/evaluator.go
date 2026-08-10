@@ -2,6 +2,7 @@ package evaluator
 
 import (
 	"fmt"
+	"math/big"
 
 	"github.com/esweby/primordial_lang/ast"
 	"github.com/esweby/primordial_lang/object"
@@ -22,13 +23,25 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		if isError(value) {
 			return value
 		}
+		if node.GetType() != nil {
+			coerced, err := coerceRuntimeArgument(value, node.GetType())
+			if err != nil {
+				return newError("declaration %s: %s", node.Name.Value, err.Error())
+			}
+			value = coerced
+		}
 
 		env.Set(node.Name.Value, value)
 		return nil
+	case *ast.StructStatement:
+		env.Set(node.Name.Value, &object.StructDefinition{Declaration: node, Env: env})
+		return nil
+	case *ast.StructLiteral:
+		return evalStructLiteral(node, env)
 	case *ast.ArrayLiteral:
 		return evalArrayLiteral(node, env)
 	case *ast.SliceLiteral:
-		elements := evalExpressions(node.Elements, env)
+		elements := evalTypedExpressions(node.Elements, node.Type, env)
 		if len(elements) == 1 && isError(elements[0]) {
 			return elements[0]
 		}
@@ -50,11 +63,24 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		return evalTupleDeclaration(node, env)
 	case *ast.AssignStatement:
 		if node.Name == nil {
-			return newError("member assignment is not supported yet")
+			target, ok := node.Target.(*ast.MemberExpression)
+			if !ok {
+				return newError("invalid assignment target")
+			}
+			return evalMemberAssignment(target, node.Value, env)
 		}
 		value := Eval(node.Value, env)
 		if isError(value) {
 			return value
+		}
+		if current, found := env.Get(node.Name.Value); found {
+			if integer, ok := current.(*object.Integer); ok {
+				coerced, err := coerceRuntimeArgument(value, integer.IntegerType)
+				if err != nil {
+					return newError("assignment to %s: %s", node.Name.Value, err.Error())
+				}
+				value = coerced
+			}
 		}
 		if _, ok := env.Assign(node.Name.Value, value); !ok {
 			return newError("identifier not found: %s", node.Name.Value)
@@ -85,6 +111,11 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		if member, ok := node.Function.(*ast.MemberExpression); ok {
 			return evalMemberCall(member, node.Arguments, env)
 		}
+		if identifier, ok := node.Function.(*ast.Identifier); ok {
+			if target, isBuiltinType := types.GetBuiltin(identifier.Value); isBuiltinType && types.IsInteger(target) {
+				return evalIntegerConversion(node, target, env)
+			}
+		}
 
 		function := Eval(node.Function, env)
 		if isError(function) {
@@ -112,7 +143,11 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 	case *ast.Identifier:
 		return evalIdentifier(node, env)
 	case *ast.IntegerLiteral:
-		return &object.Integer{Value: node.Value}
+		integerType := node.GetResolvedType()
+		if integerType == nil {
+			integerType = types.UntypedIntegerType
+		}
+		return newIntegerObject(node.Value, integerType)
 	case *ast.StringLiteral:
 		return &object.String{Value: node.Value}
 	case *ast.Boolean:
@@ -122,7 +157,7 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		if isError(right) {
 			return right
 		}
-		return evalPrefixExpression(node.Operator, right)
+		return evalPrefixExpression(node.Operator, right, node.GetResolvedType())
 	case *ast.InfixExpression:
 		left := Eval(node.Left, env)
 		if isError(left) {
@@ -132,7 +167,7 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		if isError(right) {
 			return right
 		}
-		return evalInfixExpression(node.Operator, left, right)
+		return evalInfixExpression(node.Operator, left, right, node.GetResolvedType())
 	}
 
 	return nil
@@ -217,7 +252,7 @@ func evalArrayLiteral(
 	arr *ast.ArrayLiteral,
 	env *object.Environment,
 ) object.Object {
-	elements := evalExpressions(arr.Elements, env)
+	elements := evalTypedExpressions(arr.Elements, arr.Type, env)
 	if len(elements) == 1 && isError(elements[0]) {
 		return elements[0]
 	}
@@ -286,7 +321,11 @@ func evalIndexExpression(left, index object.Object) object.Object {
 
 func evalArrayIndexExpression(array, index object.Object) object.Object {
 	arrayObject := array.(*object.Array)
-	idx := index.(*object.Integer).Value
+	indexValue := index.(*object.Integer).Value
+	if !indexValue.IsInt64() {
+		return newError("array index is outside the supported range: %s", indexValue.String())
+	}
+	idx := indexValue.Int64()
 	max := int64(len(arrayObject.Elements) - 1)
 
 	if idx < 0 || idx > max {
@@ -298,7 +337,11 @@ func evalArrayIndexExpression(array, index object.Object) object.Object {
 
 func evalSliceIndexExpression(array, index object.Object) object.Object {
 	slice := array.(*object.Slice)
-	idx := index.(*object.Integer).Value
+	indexValue := index.(*object.Integer).Value
+	if !indexValue.IsInt64() {
+		return newError("slice index is outside the supported range: %s", indexValue.String())
+	}
+	idx := indexValue.Int64()
 	max := int64(len(slice.Elements) - 1)
 
 	if idx < 0 || idx > max {
@@ -315,9 +358,22 @@ func applyFunction(fn object.Object, args []object.Object) object.Object {
 
 	switch fn := fn.(type) {
 	case *object.Function:
+		if len(args) != len(fn.Parameters) {
+			return newError("wrong number of arguments: expected %d, got %d", len(fn.Parameters), len(args))
+		}
+		for i, parameter := range fn.Parameters {
+			coerced, err := coerceRuntimeArgument(args[i], parameter.Type)
+			if err != nil {
+				return newError("argument %d: %s", i, err.Error())
+			}
+			args[i] = coerced
+		}
 		extendedEnv := extendFunctionEnv(fn, args)
 		evaluated := Eval(fn.Body, extendedEnv)
-		return unwrapReturnValue(evaluated)
+		if isError(evaluated) {
+			return evaluated
+		}
+		return coerceFunctionResult(fn, unwrapReturnValue(evaluated))
 	case *object.Builtin:
 		return fn.Fn(args...)
 	}
@@ -370,9 +426,9 @@ func evalIfExpression(ie *ast.IfExpression, env *object.Environment) object.Obje
 	}
 
 	if isTruthy(condition) {
-		return Eval(ie.Body, env)
+		return Eval(ie.Body, object.NewEnclosedEnvironment(env))
 	} else if ie.Else != nil {
-		return Eval(ie.Else, env)
+		return Eval(ie.Else, object.NewEnclosedEnvironment(env))
 	}
 
 	return nil
@@ -391,21 +447,21 @@ func evalIdentifier(i *ast.Identifier, env *object.Environment) object.Object {
 	return newError("%s", "identifier not found: "+i.Value)
 }
 
-func evalPrefixExpression(op string, r object.Object) object.Object {
+func evalPrefixExpression(op string, r object.Object, resultType types.Type) object.Object {
 	switch op {
 	case "!":
 		return evalBangOperatorExpression(r)
 	case "-":
-		return evalMinusPrefixOperatorExpression(r)
+		return evalMinusPrefixOperatorExpression(r, resultType)
 	default:
 		return newError("unknown operator: %s %s", op, r.Type())
 	}
 }
 
-func evalInfixExpression(operator string, left, right object.Object) object.Object {
+func evalInfixExpression(operator string, left, right object.Object, resultType types.Type) object.Object {
 	switch {
 	case left.Type() == object.INTEGER_OBJ && right.Type() == object.INTEGER_OBJ:
-		return evalIntegerInfixExpression(operator, left, right)
+		return evalIntegerInfixExpression(operator, left, right, resultType)
 	case left.Type() == object.STRING_OBJ && right.Type() == object.STRING_OBJ:
 		return evalStringInfixExpression(operator, left, right)
 	case operator == "==":
@@ -419,23 +475,55 @@ func evalInfixExpression(operator string, left, right object.Object) object.Obje
 	}
 }
 
-func evalIntegerInfixExpression(operator string, left, right object.Object) object.Object {
-	leftVal := getIntegerValue(left)
-	rightVal := getIntegerValue(right)
+func evalIntegerInfixExpression(operator string, left, right object.Object, resultType types.Type) object.Object {
+	leftInteger := left.(*object.Integer)
+	rightInteger := right.(*object.Integer)
+	leftVal := leftInteger.Value
+	rightVal := rightInteger.Value
+
+	if !types.IsTypesEqual(leftInteger.IntegerType, rightInteger.IntegerType) {
+		return newError("integer type mismatch: %s and %s", leftInteger.IntegerType.Name(), rightInteger.IntegerType.Name())
+	}
+	if resultType == nil {
+		resultType = leftInteger.IntegerType
+	}
 
 	switch operator {
 	case "+":
-		return &object.Integer{Value: leftVal + rightVal}
+		return checkedIntegerResult(new(big.Int).Add(leftVal, rightVal), resultType)
 	case "-":
-		return &object.Integer{Value: leftVal - rightVal}
+		return checkedIntegerResult(new(big.Int).Sub(leftVal, rightVal), resultType)
 	case "*":
-		return &object.Integer{Value: leftVal * rightVal}
+		return checkedIntegerResult(new(big.Int).Mul(leftVal, rightVal), resultType)
 	case "/":
-		return &object.Integer{Value: leftVal / rightVal}
+		if rightVal.Sign() == 0 {
+			return newError("division by zero")
+		}
+		return checkedIntegerResult(new(big.Int).Quo(leftVal, rightVal), resultType)
 	case "<":
-		return nativeBoolToBooleanObject(leftVal < rightVal)
+		return nativeBoolToBooleanObject(leftVal.Cmp(rightVal) < 0)
 	case ">":
-		return nativeBoolToBooleanObject(leftVal > rightVal)
+		return nativeBoolToBooleanObject(leftVal.Cmp(rightVal) > 0)
+	case "<=":
+		return nativeBoolToBooleanObject(leftVal.Cmp(rightVal) <= 0)
+	case ">=":
+		return nativeBoolToBooleanObject(leftVal.Cmp(rightVal) >= 0)
+	case "==":
+		return nativeBoolToBooleanObject(leftVal.Cmp(rightVal) == 0)
+	case "!=":
+		return nativeBoolToBooleanObject(leftVal.Cmp(rightVal) != 0)
+	default:
+		return newError("unknown operator: %s %s %s", left.Type(), operator, right.Type())
+	}
+}
+
+func evalStringInfixExpression(operator string, left, right object.Object) object.Object {
+	leftVal := left.(*object.String).Value
+	rightVal := right.(*object.String).Value
+
+	switch operator {
+	case "+":
+		return &object.String{Value: leftVal + rightVal}
 	case "==":
 		return nativeBoolToBooleanObject(leftVal == rightVal)
 	case "!=":
@@ -445,15 +533,74 @@ func evalIntegerInfixExpression(operator string, left, right object.Object) obje
 	}
 }
 
-func evalStringInfixExpression(operator string, left, right object.Object) object.Object {
-	if operator != "+" {
-		return newError("unknown operator: %s %s %s", left.Type(), operator, right.Type())
+func evalStructLiteral(literal *ast.StructLiteral, env *object.Environment) object.Object {
+	definitionObject, ok := env.Get(literal.Name.Value)
+	if !ok {
+		return newError("unknown struct type: %s", literal.Name.Value)
+	}
+	definition, ok := definitionObject.(*object.StructDefinition)
+	if !ok {
+		return newError("%s is not a struct type", literal.Name.Value)
 	}
 
-	leftVal := left.(*object.String).Value
-	rightVal := right.(*object.String).Value
+	declaredFields := make(map[string]*ast.StructField, len(definition.Declaration.Fields))
+	for _, field := range definition.Declaration.Fields {
+		declaredFields[field.Name.Value] = field
+	}
 
-	return &object.String{Value: leftVal + rightVal}
+	provided := make(map[string]ast.Expression, len(literal.Fields))
+	for _, field := range literal.Fields {
+		if _, exists := declaredFields[field.Name.Value]; !exists {
+			return newError("type %s has no field %s", literal.Name.Value, field.Name.Value)
+		}
+		if _, duplicate := provided[field.Name.Value]; duplicate {
+			return newError("field %s supplied more than once", field.Name.Value)
+		}
+		provided[field.Name.Value] = field.Value
+	}
+
+	fields := make(map[string]object.Object, len(definition.Declaration.Fields))
+	for _, declared := range definition.Declaration.Fields {
+		expression, supplied := provided[declared.Name.Value]
+		evaluationEnv := env
+		if !supplied {
+			expression = declared.Value
+			evaluationEnv = definition.Env
+		}
+		if expression == nil {
+			return newError("missing required field %s.%s", literal.Name.Value, declared.Name.Value)
+		}
+		value := Eval(expression, evaluationEnv)
+		if isError(value) {
+			return value
+		}
+		coerced, err := coerceRuntimeArgument(value, declared.Type)
+		if err != nil {
+			return newError("field %s.%s: %s", literal.Name.Value, declared.Name.Value, err.Error())
+		}
+		fields[declared.Name.Value] = coerced
+	}
+
+	return &object.Struct{Name: literal.Name.Value, Definition: definition, Fields: fields}
+}
+
+func evalIntegerConversion(call *ast.CallExpression, target types.Type, env *object.Environment) object.Object {
+	if len(call.Arguments) != 1 {
+		return newError("integer conversion to %s expects 1 argument, got %d", target.Name(), len(call.Arguments))
+	}
+	value := Eval(call.Arguments[0], env)
+	if isError(value) {
+		return value
+	}
+	integer, ok := value.(*object.Integer)
+	if !ok {
+		return newError("cannot convert %s to %s", value.Type(), target.Name())
+	}
+	concrete := target.(*types.Integer)
+	if !concrete.CanRepresent(integer.Value) {
+		return newError("integer conversion overflow: %s is not representable as %s", integer.Value.String(), target.Name())
+	}
+	return newIntegerObject(integer.Value, target)
 }
 
 func evalBangOperatorExpression(expr object.Object) object.Object {
@@ -467,13 +614,19 @@ func evalBangOperatorExpression(expr object.Object) object.Object {
 	}
 }
 
-func evalMinusPrefixOperatorExpression(expr object.Object) object.Object {
+func evalMinusPrefixOperatorExpression(expr object.Object, resultType types.Type) object.Object {
 	integer, ok := expr.(*object.Integer)
 	if !ok {
 		return newError("unknown operator: -%s", expr.Type())
 	}
 
-	return &object.Integer{Value: -integer.Value}
+	if resultType == nil {
+		resultType = integer.IntegerType
+	}
+	if integerType, ok := resultType.(*types.Integer); ok && !integerType.Signed() {
+		return newError("cannot negate unsigned integer %s", resultType.Name())
+	}
+	return checkedIntegerResult(new(big.Int).Neg(integer.Value), resultType)
 }
 
 // Helper functions
@@ -483,10 +636,6 @@ func nativeBoolToBooleanObject(input bool) *object.Boolean {
 	}
 
 	return FALSE
-}
-
-func getIntegerValue(o object.Object) int64 {
-	return o.(*object.Integer).Value
 }
 
 func isTruthy(obj object.Object) bool {
@@ -511,7 +660,7 @@ func isError(obj object.Object) bool {
 func neutralObject(t types.Type) (object.Object, bool) {
 	switch t.Kind() {
 	case types.KindInteger:
-		return &object.Integer{Value: 0}, true
+		return newIntegerObject(big.NewInt(0), t), true
 	case types.KindBoolean:
 		return &object.Boolean{Value: false}, true
 	case types.KindString:
@@ -519,4 +668,95 @@ func neutralObject(t types.Type) (object.Object, bool) {
 	default:
 		return nil, false
 	}
+}
+
+func newIntegerObject(value *big.Int, integerType types.Type) *object.Integer {
+	return &object.Integer{Value: new(big.Int).Set(value), IntegerType: integerType}
+}
+
+func checkedIntegerResult(value *big.Int, integerType types.Type) object.Object {
+	if concrete, ok := integerType.(*types.Integer); ok && !concrete.CanRepresent(value) {
+		return newError("integer overflow: %s is not representable as %s", value.String(), concrete.Name())
+	}
+	return newIntegerObject(value, integerType)
+}
+
+func coerceRuntimeArgument(argument object.Object, target types.Type) (object.Object, error) {
+	if argument == nil || target == nil {
+		return argument, nil
+	}
+	integer, isInteger := argument.(*object.Integer)
+	targetInteger, targetIsInteger := target.(*types.Integer)
+	if isInteger && targetIsInteger {
+		if types.IsUntypedInteger(integer.IntegerType) {
+			if !targetInteger.CanRepresent(integer.Value) {
+				return nil, fmt.Errorf("integer constant %s is not representable as %s", integer.Value.String(), target.Name())
+			}
+			return newIntegerObject(integer.Value, target), nil
+		}
+		if !types.IsTypesEqual(integer.IntegerType, target) {
+			return nil, fmt.Errorf("expected %s, got %s", target.Name(), integer.IntegerType.Name())
+		}
+		return argument, nil
+	}
+
+	switch target.Kind() {
+	case types.KindInteger:
+		return nil, fmt.Errorf("expected %s, got %s", target.Name(), argument.Type())
+	case types.KindString:
+		if _, ok := argument.(*object.String); !ok {
+			return nil, fmt.Errorf("expected string, got %s", argument.Type())
+		}
+	case types.KindBoolean:
+		if _, ok := argument.(*object.Boolean); !ok {
+			return nil, fmt.Errorf("expected bool, got %s", argument.Type())
+		}
+	case types.KindStruct:
+		value, ok := argument.(*object.Struct)
+		if !ok || value.Name != target.Name() {
+			return nil, fmt.Errorf("expected %s, got %s", target.Name(), argument.Type())
+		}
+	}
+	return argument, nil
+}
+
+func evalTypedExpressions(expressions []ast.Expression, target types.Type, env *object.Environment) []object.Object {
+	result := make([]object.Object, 0, len(expressions))
+	for _, expression := range expressions {
+		value := Eval(expression, env)
+		if isError(value) {
+			return []object.Object{value}
+		}
+		coerced, err := coerceRuntimeArgument(value, target)
+		if err != nil {
+			return []object.Object{newError("%s", err.Error())}
+		}
+		result = append(result, coerced)
+	}
+	return result
+}
+
+func coerceFunctionResult(function *object.Function, result object.Object) object.Object {
+	if result == nil || len(function.ReturnTypes) == 0 {
+		return result
+	}
+	if len(function.ReturnTypes) == 1 {
+		coerced, err := coerceRuntimeArgument(result, function.ReturnTypes[0].Type)
+		if err != nil {
+			return newError("return value 0: %s", err.Error())
+		}
+		return coerced
+	}
+	tuple, ok := result.(*object.Tuple)
+	if !ok || len(tuple.Elements) != len(function.ReturnTypes) {
+		return newError("return value arity mismatch")
+	}
+	for i, returnType := range function.ReturnTypes {
+		coerced, err := coerceRuntimeArgument(tuple.Elements[i], returnType.Type)
+		if err != nil {
+			return newError("return value %d: %s", i, err.Error())
+		}
+		tuple.Elements[i] = coerced
+	}
+	return tuple
 }

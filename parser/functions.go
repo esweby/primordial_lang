@@ -19,26 +19,32 @@ func (p *Parser) parseFunctionStatement() ast.Statement {
 	p.nextToken()
 
 	if !p.curTokenIs(token.IDENT) {
+		p.addDiagnostic("P1201", "expected function name, found "+describeToken(p.curToken), p.curToken, token.IDENT)
 		return nil
 	}
 
 	fn.Name = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
 
 	if !p.peekTokenIs(token.LPAREN) {
+		p.addDiagnostic("P1202", "expected '(' after function name, found "+describeToken(p.peekToken), p.peekToken, token.LPAREN)
 		return nil
 	}
 
 	p.nextToken()
 
 	var err error
+	before := len(p.diagnostics)
 	fn.Parameters, err = p.parseFunctionParameters()
 	if err != nil {
+		p.ensureDiagnostic(before, "P1203", err.Error(), p.curToken)
 		return nil
 	}
 
 	if p.peekTokenIs(token.COLON) {
+		before = len(p.diagnostics)
 		fn.ReturnTypes, err = p.parseReturnTypes()
 		if err != nil {
+			p.ensureDiagnostic(before, "P1204", err.Error(), p.curToken)
 			return nil
 		}
 	} else {
@@ -57,20 +63,25 @@ func (p *Parser) parseFunctionLiteral() ast.Expression {
 	fn := &ast.FunctionLiteral{Token: p.curToken}
 
 	if !p.peekTokenIs(token.LPAREN) {
+		p.addDiagnostic("P1202", "expected '(' after 'fn', found "+describeToken(p.peekToken), p.peekToken, token.LPAREN)
 		return nil
 	}
 
 	p.nextToken()
 
 	var err error
+	before := len(p.diagnostics)
 	fn.Parameters, err = p.parseFunctionParameters()
 	if err != nil {
+		p.ensureDiagnostic(before, "P1203", err.Error(), p.curToken)
 		return nil
 	}
 
 	if p.peekTokenIs(token.COLON) {
+		before = len(p.diagnostics)
 		fn.ReturnTypes, err = p.parseReturnTypes()
 		if err != nil {
+			p.ensureDiagnostic(before, "P1204", err.Error(), p.curToken)
 			return nil
 		}
 	} else {
@@ -97,7 +108,8 @@ func (p *Parser) parseFunctionParameters() ([]*ast.Parameter, error) {
 		param := &ast.Parameter{}
 
 		if !p.curTokenIs(token.IDENT) {
-			return nil, fmt.Errorf("expected parameter name. got=%v", p.peekToken.Type)
+			p.addDiagnostic("P1203", "expected parameter name, found "+describeToken(p.curToken), p.curToken, token.IDENT)
+			return nil, fmt.Errorf("expected parameter name, found %s", describeToken(p.curToken))
 		}
 
 		param.Name = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
@@ -105,7 +117,7 @@ func (p *Parser) parseFunctionParameters() ([]*ast.Parameter, error) {
 		p.nextToken()
 		paramType, ok := p.parseCurrentType()
 		if !ok {
-			return nil, fmt.Errorf("unknown type %s", p.curToken.Literal)
+			return nil, fmt.Errorf("expected parameter type for %s", param.Name.Value)
 		}
 
 		param.Type = paramType
@@ -119,7 +131,14 @@ func (p *Parser) parseFunctionParameters() ([]*ast.Parameter, error) {
 			p.nextToken()
 			continue
 		}
-		return nil, fmt.Errorf("expected ',' or ')', got %v", p.peekToken.Type)
+		p.addDiagnostic(
+			"P1203",
+			fmt.Sprintf("expected ',' or ')' after parameter %s, found %s", param.Name.Value, describeToken(p.peekToken)),
+			p.peekToken,
+			token.COMMA,
+			token.RPAREN,
+		)
+		return nil, fmt.Errorf("expected ',' or ')' after parameter %s, found %s", param.Name.Value, describeToken(p.peekToken))
 	}
 
 	p.nextToken()
@@ -135,7 +154,8 @@ func (p *Parser) parseReturnTypes() ([]*ast.ReturnType, error) {
 	returnTypes := []*ast.ReturnType{}
 	for {
 		if !p.curTokenIs(token.IDENT) {
-			return nil, fmt.Errorf("expected identifier return type, got %v", p.curToken.Type)
+			p.addDiagnostic("P1204", "expected return type, found "+describeToken(p.curToken), p.curToken, token.IDENT)
+			return nil, fmt.Errorf("expected return type, found %s", describeToken(p.curToken))
 		}
 
 		returnType, ok := p.parseCurrentType()
@@ -153,7 +173,14 @@ func (p *Parser) parseReturnTypes() ([]*ast.ReturnType, error) {
 			p.nextToken()
 			continue
 		}
-		return nil, fmt.Errorf("expected ',' or '{' after return type, got %v", p.peekToken.Type)
+		p.addDiagnostic(
+			"P1204",
+			"expected ',' or '{' after return type, found "+describeToken(p.peekToken),
+			p.peekToken,
+			token.COMMA,
+			token.LBRACE,
+		)
+		return nil, fmt.Errorf("expected ',' or '{' after return type, found %s", describeToken(p.peekToken))
 	}
 
 	return returnTypes, nil
@@ -174,12 +201,24 @@ func (p *Parser) parseCallArguments() []ast.Expression {
 	}
 
 	p.nextToken()
-	args = append(args, p.parseExpression(LOWEST))
+	before := len(p.diagnostics)
+	argument := p.parseExpression(LOWEST)
+	if argument == nil {
+		p.ensureDiagnostic(before, "P1210", "expected function argument", p.curToken)
+		return nil
+	}
+	args = append(args, argument)
 
 	for p.peekTokenIs(token.COMMA) {
 		p.nextToken()
 		p.nextToken()
-		args = append(args, p.parseExpression(LOWEST))
+		before = len(p.diagnostics)
+		argument = p.parseExpression(LOWEST)
+		if argument == nil {
+			p.ensureDiagnostic(before, "P1210", "expected function argument after ','", p.curToken)
+			return nil
+		}
+		args = append(args, argument)
 	}
 
 	if !p.expectPeek(token.RPAREN) {

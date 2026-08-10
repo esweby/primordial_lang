@@ -48,11 +48,12 @@ func (ss *StructStatement) String() string {
 }
 
 type StructField struct {
-	Token  token.Token
-	Name   *Identifier
-	Public bool
-	Type   types.Type
-	Value  Expression
+	Token    token.Token
+	Name     *Identifier
+	Public   bool
+	Type     types.Type
+	Value    Expression
+	Inferred bool
 }
 
 func (sf *StructField) TokenLiteral() string {
@@ -65,10 +66,11 @@ func (sf *StructField) String() string {
 	if sf.Public {
 		out.WriteString("pub ")
 	}
-
 	out.WriteString(sf.Name.Value)
-	out.WriteString(": ")
-	out.WriteString(sf.Type.Name())
+	if sf.Type != nil && !sf.Inferred {
+		out.WriteString(": ")
+		out.WriteString(sf.Type.Name())
+	}
 
 	if sf.Value != nil {
 		out.WriteString(" = ")
@@ -78,6 +80,15 @@ func (sf *StructField) String() string {
 	out.WriteString(";")
 
 	return out.String()
+}
+
+func (sf *StructField) SetInferredType(t types.Type) {
+	sf.Type = t
+	sf.Inferred = true
+}
+
+func (sf *StructField) GetType() types.Type {
+	return sf.Type
 }
 
 type StructImplBlock struct {

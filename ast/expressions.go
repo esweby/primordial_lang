@@ -2,9 +2,11 @@ package ast
 
 import (
 	"bytes"
+	"math/big"
 	"strings"
 
 	"github.com/esweby/primordial_lang/token"
+	"github.com/esweby/primordial_lang/types"
 )
 
 // TupleTargetExpression is the parenthesized identifier list used on the
@@ -29,9 +31,13 @@ func (tte *TupleTargetExpression) String() string {
 }
 
 type IntegerLiteral struct {
-	Token token.Token
-	Value int64
+	Token        token.Token
+	Value        *big.Int
+	ResolvedType types.Type
 }
+
+func (il *IntegerLiteral) GetResolvedType() types.Type  { return il.ResolvedType }
+func (il *IntegerLiteral) SetResolvedType(t types.Type) { il.ResolvedType = t }
 
 func (il *IntegerLiteral) expressionNode() {}
 
@@ -74,10 +80,14 @@ func (b *Boolean) String() string {
 }
 
 type PrefixExpression struct {
-	Token    token.Token
-	Operator string
-	Right    Expression
+	Token        token.Token
+	Operator     string
+	Right        Expression
+	ResolvedType types.Type
 }
+
+func (pe *PrefixExpression) GetResolvedType() types.Type  { return pe.ResolvedType }
+func (pe *PrefixExpression) SetResolvedType(t types.Type) { pe.ResolvedType = t }
 
 func (pe *PrefixExpression) expressionNode() {}
 
@@ -96,11 +106,15 @@ func (pe *PrefixExpression) String() string {
 }
 
 type InfixExpression struct {
-	Token    token.Token
-	Left     Expression
-	Operator string
-	Right    Expression
+	Token        token.Token
+	Left         Expression
+	Operator     string
+	Right        Expression
+	ResolvedType types.Type
 }
+
+func (ie *InfixExpression) GetResolvedType() types.Type  { return ie.ResolvedType }
+func (ie *InfixExpression) SetResolvedType(t types.Type) { ie.ResolvedType = t }
 
 func (ie *InfixExpression) expressionNode() {}
 
@@ -153,10 +167,14 @@ func (ife *IfExpression) String() string {
 }
 
 type CallExpression struct {
-	Token     token.Token
-	Function  Expression
-	Arguments []Expression
+	Token        token.Token
+	Function     Expression
+	Arguments    []Expression
+	ResolvedType types.Type
 }
+
+func (ce *CallExpression) GetResolvedType() types.Type  { return ce.ResolvedType }
+func (ce *CallExpression) SetResolvedType(t types.Type) { ce.ResolvedType = t }
 
 func (ce *CallExpression) expressionNode() {}
 

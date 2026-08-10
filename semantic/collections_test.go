@@ -150,8 +150,8 @@ func TestAnalyzeTupleDeclaration(t *testing.T) {
 func TestAnalyzeTupleAssignment(t *testing.T) {
 	errors := analyzeTupleInput(`
 		fn values(): int32, int32 { return 10, 20; }
-		mut first := 0;
-		mut second := 0;
+		mut first: int32 := 0;
+		mut second: int32 := 0;
 		(first, second) = values();
 	`)
 	if len(errors) != 0 {

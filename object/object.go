@@ -3,9 +3,12 @@ package object
 import (
 	"bytes"
 	"fmt"
+	"math/big"
+	"sort"
 	"strings"
 
 	"github.com/esweby/primordial_lang/ast"
+	"github.com/esweby/primordial_lang/types"
 )
 
 type ObjectType string
@@ -17,16 +20,18 @@ type Type interface {
 type BuiltinFunction func(arg ...Object) Object
 
 const (
-	INTEGER_OBJ       = "INTEGER"
-	BOOLEAN_OBJ       = "BOOLEAN"
-	STRING_OBJ        = "STRING"
-	FUNCTION_OBJ      = "FUNCTION"
-	RETURN_VALUES_OBJ = "RETURN"
-	TUPLE_OBJ         = "TUPLE"
-	ERROR_OBJ         = "ERROR"
-	BUILTIN_OBJ       = "BUILTIN"
-	ARRAY_OBJ         = "ARRAY"
-	SLICE_OBJ         = "SLICE"
+	INTEGER_OBJ           = "INTEGER"
+	BOOLEAN_OBJ           = "BOOLEAN"
+	STRING_OBJ            = "STRING"
+	FUNCTION_OBJ          = "FUNCTION"
+	RETURN_VALUES_OBJ     = "RETURN"
+	TUPLE_OBJ             = "TUPLE"
+	ERROR_OBJ             = "ERROR"
+	BUILTIN_OBJ           = "BUILTIN"
+	ARRAY_OBJ             = "ARRAY"
+	SLICE_OBJ             = "SLICE"
+	STRUCT_DEFINITION_OBJ = "STRUCT_DEFINITION"
+	STRUCT_OBJ            = "STRUCT"
 )
 
 type Object interface {
@@ -35,12 +40,13 @@ type Object interface {
 }
 
 type Integer struct {
-	Value int64
+	Value       *big.Int
+	IntegerType types.Type
 }
 
 func (i *Integer) Type() ObjectType { return INTEGER_OBJ }
 
-func (i *Integer) Inspect() string { return fmt.Sprintf("%d", i.Value) }
+func (i *Integer) Inspect() string { return i.Value.String() }
 
 type Boolean struct {
 	Value bool
@@ -183,3 +189,32 @@ type Builtin struct {
 func (b *Builtin) Type() ObjectType { return BUILTIN_OBJ }
 
 func (b *Builtin) Inspect() string { return "builtin function" }
+
+type StructDefinition struct {
+	Declaration *ast.StructStatement
+	Env         *Environment
+}
+
+func (sd *StructDefinition) Type() ObjectType { return STRUCT_DEFINITION_OBJ }
+func (sd *StructDefinition) Inspect() string  { return sd.Declaration.String() }
+
+type Struct struct {
+	Name       string
+	Definition *StructDefinition
+	Fields     map[string]Object
+}
+
+func (s *Struct) Type() ObjectType { return STRUCT_OBJ }
+func (s *Struct) Inspect() string {
+	names := make([]string, 0, len(s.Fields))
+	for name := range s.Fields {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	fields := make([]string, 0, len(names))
+	for _, name := range names {
+		fields = append(fields, name+": "+s.Fields[name].Inspect())
+	}
+	return s.Name + "{" + strings.Join(fields, ", ") + "}"
+}

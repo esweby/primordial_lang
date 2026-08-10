@@ -46,4 +46,6 @@ go test ./...
 
 The original [design notes](specification/Design%20Notes.md) contain the longer brain-dump behind the language. There is also a more structured [language specification](specification/Language%20Specification.md). Both are working documents, not sacred texts.
 
+Implementation documentation, including the current integer typing and runtime contract, lives in [`documentation`](documentation/README.md).
+
 This is an ambitious solo hobby project. Good enough is good enough—until it becomes interesting to make it better.

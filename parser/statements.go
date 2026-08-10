@@ -60,6 +60,7 @@ func (p *Parser) parseDeclareStatement() *ast.DeclareStatement {
 	}
 
 	if !p.curTokenIs(token.IDENT) {
+		p.addDiagnostic("P1101", "expected declaration name, found "+describeToken(p.curToken), p.curToken, token.IDENT)
 		return nil
 	}
 
@@ -67,8 +68,10 @@ func (p *Parser) parseDeclareStatement() *ast.DeclareStatement {
 	p.nextToken()
 
 	if p.curTokenIs(token.COLON) {
+		before := len(p.diagnostics)
 		declaredType, ok := p.parseTypeAfterColon()
 		if !ok {
+			p.ensureDiagnostic(before, "P1401", "expected type after ':'", p.curToken, token.IDENT)
 			return nil
 		}
 
@@ -77,12 +80,18 @@ func (p *Parser) parseDeclareStatement() *ast.DeclareStatement {
 	}
 
 	if !p.curTokenIs(token.DECLARE) {
+		p.addDiagnostic("P1102", "expected ':=' after declaration name, found "+describeToken(p.curToken), p.curToken, token.DECLARE)
 		return nil
 	}
 
 	stmt.Token = p.curToken
 	p.nextToken()
+	before := len(p.diagnostics)
 	stmt.Value = p.parseExpression(LOWEST)
+	if stmt.Value == nil {
+		p.ensureDiagnostic(before, "P1103", "expected declaration value", p.curToken)
+		return nil
+	}
 
 	if p.peekTokenIs(token.SEMICOLON) {
 		p.nextToken()
@@ -94,11 +103,17 @@ func (p *Parser) parseDeclareStatement() *ast.DeclareStatement {
 func (p *Parser) parseReturnStatement() *ast.ReturnStatement {
 	stmt := &ast.ReturnStatement{Token: p.curToken}
 	p.nextToken()
+	if p.curTokenIs(token.SEMICOLON) {
+		stmt.ReturnValues = []ast.Expression{}
+		return stmt
+	}
 
 	returnValues := []ast.Expression{}
 	for {
+		before := len(p.diagnostics)
 		expr := p.parseExpression(LOWEST)
 		if expr == nil {
+			p.ensureDiagnostic(before, "P1701", "expected expression after 'return'", p.curToken)
 			return nil
 		}
 
@@ -112,8 +127,12 @@ func (p *Parser) parseReturnStatement() *ast.ReturnStatement {
 
 	stmt.ReturnValues = returnValues
 
-	for !p.curTokenIs(token.SEMICOLON) && !p.curTokenIs(token.EOF) {
+	if p.peekTokenIs(token.SEMICOLON) {
 		p.nextToken()
+		return stmt
+	}
+	if !p.curTokenIs(token.SEMICOLON) {
+		p.addDiagnostic("P1702", "expected ';' after return values, found "+describeToken(p.peekToken), p.peekToken, token.SEMICOLON)
 	}
 
 	return stmt
@@ -131,7 +150,12 @@ func (p *Parser) parseExpressionStatement() ast.Statement {
 		p.nextToken()
 		operator := p.curToken
 		p.nextToken()
+		before := len(p.diagnostics)
 		value := p.parseExpression(LOWEST)
+		if value == nil {
+			p.ensureDiagnostic(before, "P1603", "expected value after tuple assignment operator", p.curToken)
+			return nil
+		}
 
 		if p.peekTokenIs(token.SEMICOLON) {
 			p.nextToken()
@@ -144,7 +168,7 @@ func (p *Parser) parseExpressionStatement() ast.Statement {
 	}
 
 	if _, ok := stmt.Expression.(*ast.TupleTargetExpression); ok {
-		p.errors = append(p.errors, "tuple target must be followed by ':=' or '='")
+		p.addDiagnostic("P1601", "tuple target must be followed by ':=' or '='", p.peekToken, token.DECLARE, token.ASSIGN)
 		return nil
 	}
 
@@ -152,15 +176,17 @@ func (p *Parser) parseExpressionStatement() ast.Statement {
 		switch stmt.Expression.(type) {
 		case *ast.Identifier, *ast.MemberExpression:
 		default:
-			p.errors = append(p.errors, "assignment target must be an identifier or member expression")
+			p.addDiagnostic("P1602", "assignment target must be an identifier or member expression", p.curToken)
 			return nil
 		}
 
 		p.nextToken()
 		operator := p.curToken
 		p.nextToken()
+		before := len(p.diagnostics)
 		value := p.parseExpression(LOWEST)
 		if value == nil {
+			p.ensureDiagnostic(before, "P1603", "expected assignment value", p.curToken)
 			return nil
 		}
 

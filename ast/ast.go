@@ -4,6 +4,7 @@ import (
 	"bytes"
 
 	"github.com/esweby/primordial_lang/token"
+	"github.com/esweby/primordial_lang/types"
 )
 
 type Node interface {
@@ -19,6 +20,12 @@ type Statement interface {
 type Expression interface {
 	Node
 	expressionNode()
+}
+
+type TypedExpression interface {
+	Expression
+	GetResolvedType() types.Type
+	SetResolvedType(types.Type)
 }
 
 type Program struct {

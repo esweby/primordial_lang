@@ -58,14 +58,8 @@ func (sa *SemanticAnalyzer) analyzeCollectionElements(
 			return false
 		}
 
-		if !types.IsAssignable(elementType, actualType) {
-			sa.error(fmt.Sprintf(
-				"%s element %d: expected %s, got %s",
-				collectionName,
-				i,
-				elementType.Name(),
-				actualType.Name(),
-			))
+		if err := sa.requireAssignable(elementType, actualType, element); err != nil {
+			sa.error(fmt.Sprintf("%s element %d: %s", collectionName, i, err.Error()))
 			return false
 		}
 	}
@@ -152,7 +146,7 @@ func (sa *SemanticAnalyzer) analyzeTupleAssignmentStatement(stmt *ast.TupleAssig
 			sa.error(fmt.Sprintf("cannot assign to immutable variable: %s", name.Value))
 			return types.InvalidType
 		}
-		if !types.IsAssignable(decl.Type(), elementTypes[i]) {
+		if !types.IsTypesEqual(decl.Type(), elementTypes[i]) {
 			sa.error(fmt.Sprintf("tuple assignment value %d: expected %s, got %s",
 				i, decl.Type().Name(), elementTypes[i].Name()))
 			return types.InvalidType

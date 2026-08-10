@@ -48,6 +48,19 @@ type FunctionSymbol struct {
 	returnTypes []types.Type
 }
 
+type StructSymbol struct {
+	name string
+	typ  *types.Struct
+}
+
+func (ss *StructSymbol) Name() string {
+	return ss.name
+}
+
+func (ss *StructSymbol) Type() types.Type {
+	return ss.typ
+}
+
 func (fs *FunctionSymbol) Name() string {
 	return fs.name
 }

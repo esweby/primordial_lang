@@ -11,10 +11,12 @@ func (sa *SemanticAnalyzer) analyzeFunctionStatement(stmt *ast.FunctionStatement
 	// Build the function signature from the AST.
 	paramTypes := make([]types.Type, len(stmt.Parameters))
 	for i, p := range stmt.Parameters {
+		p.Type = sa.resolveType(p.Type)
 		paramTypes[i] = p.Type
 	}
 	returnTypes := make([]types.Type, len(stmt.ReturnTypes))
 	for i, rt := range stmt.ReturnTypes {
+		rt.Type = sa.resolveType(rt.Type)
 		returnTypes[i] = rt.Type
 	}
 
@@ -71,9 +73,13 @@ func (sa *SemanticAnalyzer) analyzeFunctionLiteral(ds *ast.DeclareStatement) typ
 	// Build parameter symbols and return types
 	params := make([]*ast.Parameter, len(fnLit.Parameters))
 	copy(params, fnLit.Parameters)
+	for _, param := range params {
+		param.Type = sa.resolveType(param.Type)
+	}
 
 	returnTypes := make([]types.Type, len(fnLit.ReturnTypes))
 	for i, rt := range fnLit.ReturnTypes {
+		rt.Type = sa.resolveType(rt.Type)
 		returnTypes[i] = rt.Type
 	}
 
@@ -109,6 +115,7 @@ func (sa *SemanticAnalyzer) analyzeStandaloneFunctionLiteral(fnLit *ast.Function
 	// Build signature for context.
 	returnTypes := make([]types.Type, len(fnLit.ReturnTypes))
 	for i, rt := range fnLit.ReturnTypes {
+		rt.Type = sa.resolveType(rt.Type)
 		returnTypes[i] = rt.Type
 	}
 

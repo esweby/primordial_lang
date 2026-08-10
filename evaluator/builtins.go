@@ -1,6 +1,11 @@
 package evaluator
 
-import "github.com/esweby/primordial_lang/object"
+import (
+	"math/big"
+
+	"github.com/esweby/primordial_lang/object"
+	"github.com/esweby/primordial_lang/types"
+)
 
 var builtins = map[string]*object.Builtin{
 	"len": {
@@ -11,11 +16,11 @@ var builtins = map[string]*object.Builtin{
 
 			switch arg := args[0].(type) {
 			case *object.Array:
-				return &object.Integer{Value: int64(len(arg.Elements))}
+				return newIntegerObject(big.NewInt(int64(len(arg.Elements))), types.Int64Type)
 			case *object.Slice:
-				return &object.Integer{Value: int64(len(arg.Elements))}
+				return newIntegerObject(big.NewInt(int64(len(arg.Elements))), types.Int64Type)
 			case *object.String:
-				return &object.Integer{Value: int64(len(arg.Value))}
+				return newIntegerObject(big.NewInt(int64(len(arg.Value))), types.Int64Type)
 			default:
 				return newError("argument to `len` not supported, got %s", args[0].Type())
 			}

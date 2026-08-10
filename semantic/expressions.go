@@ -13,6 +13,7 @@ func (sa *SemanticAnalyzer) analyzeBlock(block *ast.BlockExpression) BlockResult
 	}
 
 	var lastType types.Type
+	var lastExpression ast.Expression
 	var returns bool
 
 	for _, stmt := range block.Statements {
@@ -26,8 +27,9 @@ func (sa *SemanticAnalyzer) analyzeBlock(block *ast.BlockExpression) BlockResult
 		}
 
 		// If the statement is an expression statement, its type may be the block's value.
-		if _, ok := stmt.(*ast.ExpressionStatement); ok {
+		if expressionStatement, ok := stmt.(*ast.ExpressionStatement); ok {
 			lastType = stmtType
+			lastExpression = expressionStatement.Expression
 		}
 		// Other statements (declarations, assignments, function defs) do not affect the block's value.
 	}
@@ -35,7 +37,7 @@ func (sa *SemanticAnalyzer) analyzeBlock(block *ast.BlockExpression) BlockResult
 	if returns {
 		return BlockResult{Type: nil, Returns: true}
 	}
-	return BlockResult{Type: lastType, Returns: false}
+	return BlockResult{Type: lastType, Returns: false, Expression: lastExpression}
 }
 
 func (sa *SemanticAnalyzer) analyzeExpression(exp ast.Expression) types.Type {
@@ -46,15 +48,22 @@ func (sa *SemanticAnalyzer) analyzeExpression(exp ast.Expression) types.Type {
 
 	switch e := exp.(type) {
 	case *ast.IntegerLiteral:
-		return types.Int64Type
+		if e.GetResolvedType() != nil {
+			return e.GetResolvedType()
+		}
+		return types.UntypedIntegerType
 	case *ast.Boolean:
 		return types.BoolType
-	// case *ast.StringLiteral:
-	// return types.StringType
+	case *ast.StringLiteral:
+		return types.StringType
 	case *ast.Identifier:
 		sym, ok := sa.current.Get(e.Value)
 		if !ok {
 			sa.error("undefined identifier: " + e.Value)
+			return types.InvalidType
+		}
+		if _, isType := sym.(*StructSymbol); isType {
+			sa.error(fmt.Sprintf("type %s cannot be used as a value", e.Value))
 			return types.InvalidType
 		}
 		return sym.Type()
@@ -78,6 +87,10 @@ func (sa *SemanticAnalyzer) analyzeExpression(exp ast.Expression) types.Type {
 		return sa.analyzeSliceLiteral(e)
 	case *ast.MemberExpression:
 		return sa.analyzeMemberExpression(e)
+	case *ast.IndexExpression:
+		return sa.analyzeIndexExpression(e)
+	case *ast.StructLiteral:
+		return sa.analyzeStructLiteral(e)
 	default:
 		sa.error(fmt.Sprintf("analyzeExpression received unexpected expression: %T", e))
 		return types.InvalidType
@@ -94,36 +107,54 @@ func (sa *SemanticAnalyzer) analyzeInfixExpression(e *ast.InfixExpression) types
 
 	switch e.Operator {
 	case "+", "-", "*", "/":
-		if sa.isInvalidInfixType(left) {
-			sa.error(fmt.Sprintf("invalid type: %s", left.Name()))
-			return types.InvalidType
+		if e.Operator == "+" && types.IsString(left) && types.IsString(right) {
+			return types.StringType
 		}
-		if sa.isInvalidInfixType(right) {
-			sa.error(fmt.Sprintf("invalid type: %s", right.Name()))
-			return types.InvalidType
+		if (types.IsInteger(left) || types.IsUntypedInteger(left)) &&
+			(types.IsInteger(right) || types.IsUntypedInteger(right)) {
+			resultType, err := sa.resolveIntegerOperands(e, left, right)
+			if err != nil {
+				sa.error(err.Error())
+				return types.InvalidType
+			}
+			if e.Operator == "/" {
+				if divisor, ok := integerConstantValue(e.Right); ok && divisor.Sign() == 0 {
+					sa.error("division by zero")
+					return types.InvalidType
+				}
+			}
+			return resultType
 		}
-		if !types.IsNumeric(left) || !types.IsNumeric(right) {
+		if !types.IsNumeric(left) || !types.IsNumeric(right) || !types.IsTypesEqual(left, right) {
 			sa.error(fmt.Sprintf("mismatched types: %s and %s", left.Name(), right.Name()))
 			return types.InvalidType
 		}
+		e.SetResolvedType(left)
 		return left
 	case "<=", "<", ">", ">=":
-		if !types.IsNumeric(left) {
-			sa.error(fmt.Sprintf("invalid type: %s", left.Name()))
-			return types.InvalidType
+		if (types.IsInteger(left) || types.IsUntypedInteger(left)) &&
+			(types.IsInteger(right) || types.IsUntypedInteger(right)) {
+			if _, err := sa.resolveIntegerOperands(e, left, right); err != nil {
+				sa.error(err.Error())
+				return types.InvalidType
+			}
+			return types.BoolType
 		}
-		if !types.IsNumeric(right) {
-			sa.error(fmt.Sprintf("invalid type: %s", right.Name()))
-			return types.InvalidType
-		}
-
-		if !types.IsTypesEqual(left, right) {
+		if !types.IsNumeric(left) || !types.IsNumeric(right) || !types.IsTypesEqual(left, right) {
 			sa.error(fmt.Sprintf("mismatched types: %s %s %s", left.Name(), e.Operator, right.Name()))
 			return types.InvalidType
 		}
 
 		return types.BoolType
 	case "==", "!=":
+		if (types.IsInteger(left) || types.IsUntypedInteger(left)) &&
+			(types.IsInteger(right) || types.IsUntypedInteger(right)) {
+			if _, err := sa.resolveIntegerOperands(e, left, right); err != nil {
+				sa.error(err.Error())
+				return types.InvalidType
+			}
+			return types.BoolType
+		}
 		comparable := types.IsNumeric(left) ||
 			types.IsBoolean(left) ||
 			types.IsString(left)
@@ -155,10 +186,19 @@ func (sa *SemanticAnalyzer) analyzePrefixExpression(pe *ast.PrefixExpression) ty
 
 	switch pe.Operator {
 	case "-":
+		if types.IsUntypedInteger(right) {
+			pe.SetResolvedType(types.UntypedIntegerType)
+			return types.UntypedIntegerType
+		}
 		if !types.IsNumeric(right) {
 			sa.error(fmt.Sprintf("analyzePrefixExpression - operator: type is not numeric. Got=%s", right.Name()))
 			return types.InvalidType
 		}
+		if integerType, ok := right.(*types.Integer); ok && !integerType.Signed() {
+			sa.error(fmt.Sprintf("cannot negate unsigned integer %s", right.Name()))
+			return types.InvalidType
+		}
+		pe.SetResolvedType(right)
 		return right
 	case "!":
 		if !types.IsBoolean(right) {
@@ -175,6 +215,15 @@ func (sa *SemanticAnalyzer) analyzePrefixExpression(pe *ast.PrefixExpression) ty
 func (sa *SemanticAnalyzer) analyzeCallExpression(ce *ast.CallExpression) types.Type {
 	if member, ok := ce.Function.(*ast.MemberExpression); ok {
 		return sa.analyzeMemberCall(member, ce.Arguments)
+	}
+
+	if ident, ok := ce.Function.(*ast.Identifier); ok {
+		if target, isBuiltinType := types.GetBuiltin(ident.Value); isBuiltinType && types.IsInteger(target) {
+			return sa.analyzeIntegerConversion(ce, target)
+		}
+		if _, declared := sa.current.Get(ident.Value); !declared && ident.Value == "len" {
+			return sa.analyzeLenCall(ce.Arguments)
+		}
 	}
 
 	calleeType := sa.analyzeExpression(ce.Function)
@@ -223,9 +272,8 @@ func (sa *SemanticAnalyzer) analyzeCallExpression(ce *ast.CallExpression) types.
 	// Check argument types.
 	for i, p := range fs.params {
 		argType := sa.analyzeExpression(ce.Arguments[i])
-		if !types.IsAssignable(p.Type, argType) {
-			sa.error(fmt.Sprintf("argument %d: expected %s, got %s",
-				i, p.Type.Name(), argType.Name()))
+		if err := sa.requireAssignable(p.Type, argType, ce.Arguments[i]); err != nil {
+			sa.error(fmt.Sprintf("argument %d: %s", i, err.Error()))
 			return types.InvalidType
 		}
 	}
@@ -243,6 +291,25 @@ func (sa *SemanticAnalyzer) analyzeCallExpression(ce *ast.CallExpression) types.
 	}
 }
 
+func (sa *SemanticAnalyzer) analyzeIntegerConversion(call *ast.CallExpression, target types.Type) types.Type {
+	if len(call.Arguments) != 1 {
+		sa.error(fmt.Sprintf("integer conversion to %s expects 1 argument, got %d", target.Name(), len(call.Arguments)))
+		return types.InvalidType
+	}
+	actual := sa.analyzeExpression(call.Arguments[0])
+	if types.IsUntypedInteger(actual) {
+		if err := coerceIntegerConstant(call.Arguments[0], target); err != nil {
+			sa.error(err.Error())
+			return types.InvalidType
+		}
+	} else if !types.IsInteger(actual) {
+		sa.error(fmt.Sprintf("cannot convert %s to %s", actual.Name(), target.Name()))
+		return types.InvalidType
+	}
+	call.SetResolvedType(target)
+	return target
+}
+
 func (sa *SemanticAnalyzer) analyzeIfExpression(ifExpr *ast.IfExpression, expectsValue bool) types.Type {
 	// 1. Analyze condition.
 	condType := sa.analyzeExpression(ifExpr.Condition)
@@ -252,7 +319,7 @@ func (sa *SemanticAnalyzer) analyzeIfExpression(ifExpr *ast.IfExpression, expect
 	}
 
 	// 2. Analyze 'then' block.
-	thenResult := sa.analyzeBlock(ifExpr.Body)
+	thenResult := sa.analyzeScopedBlock(ifExpr.Body)
 
 	// 3. Analyze 'else' branch if present.
 	var elseResult BlockResult
@@ -260,10 +327,12 @@ func (sa *SemanticAnalyzer) analyzeIfExpression(ifExpr *ast.IfExpression, expect
 	if hasElse {
 		switch elseBranch := ifExpr.Else.(type) {
 		case *ast.BlockExpression:
-			elseResult = sa.analyzeBlock(elseBranch)
+			elseResult = sa.analyzeScopedBlock(elseBranch)
 		case *ast.IfExpression:
 			// Recursively analyze else‑if; passes expectsValue down.
+			sa.enterScope()
 			elseType := sa.analyzeIfExpression(elseBranch, expectsValue)
+			sa.exitScope()
 			elseResult = BlockResult{Type: elseType, Returns: false} // approximate, may need refinement
 		default:
 			sa.error("unexpected else structure")
@@ -308,6 +377,19 @@ func (sa *SemanticAnalyzer) analyzeIfExpression(ifExpr *ast.IfExpression, expect
 				sa.error("if expression branches must end with an expression")
 				return types.InvalidType
 			}
+			if types.IsUntypedInteger(thenResult.Type) && types.IsInteger(elseResult.Type) {
+				if err := coerceIntegerConstant(thenResult.Expression, elseResult.Type); err != nil {
+					sa.error(err.Error())
+					return types.InvalidType
+				}
+				thenResult.Type = elseResult.Type
+			} else if types.IsInteger(thenResult.Type) && types.IsUntypedInteger(elseResult.Type) {
+				if err := coerceIntegerConstant(elseResult.Expression, thenResult.Type); err != nil {
+					sa.error(err.Error())
+					return types.InvalidType
+				}
+				elseResult.Type = thenResult.Type
+			}
 			if !types.IsTypesEqual(thenResult.Type, elseResult.Type) {
 				sa.error(fmt.Sprintf("if expression branches have mismatched types: %s vs %s",
 					thenResult.Type.Name(), elseResult.Type.Name()))
@@ -319,6 +401,49 @@ func (sa *SemanticAnalyzer) analyzeIfExpression(ifExpr *ast.IfExpression, expect
 	}
 	// Statement context: we don't care about the type, but we already validated.
 	return nil
+}
+
+func (sa *SemanticAnalyzer) analyzeIndexExpression(exp *ast.IndexExpression) types.Type {
+	collectionType := sa.analyzeExpression(exp.Left)
+	indexType := sa.analyzeExpression(exp.Index)
+	if types.IsUntypedInteger(indexType) {
+		resolved, err := sa.defaultInteger(exp.Index, indexType)
+		if err != nil {
+			sa.error(err.Error())
+			return types.InvalidType
+		}
+		indexType = resolved
+	}
+	if !types.IsInteger(indexType) {
+		sa.error(fmt.Sprintf("collection index must be an integer, got %s", indexType.Name()))
+		return types.InvalidType
+	}
+
+	switch collection := collectionType.(type) {
+	case *types.Array:
+		return collection.ElementType()
+	case *types.Slice:
+		return collection.ElementType()
+	default:
+		sa.error(fmt.Sprintf("type %s cannot be indexed", collectionType.Name()))
+		return types.InvalidType
+	}
+}
+
+func (sa *SemanticAnalyzer) analyzeLenCall(args []ast.Expression) types.Type {
+	if len(args) != 1 {
+		sa.error(fmt.Sprintf("len expects 1 argument, got %d", len(args)))
+		return types.InvalidType
+	}
+
+	argumentType := sa.analyzeExpression(args[0])
+	switch argumentType.Kind() {
+	case types.KindArray, types.KindSlice, types.KindString:
+		return types.Int64Type
+	default:
+		sa.error(fmt.Sprintf("argument to len not supported, got %s", argumentType.Name()))
+		return types.InvalidType
+	}
 }
 
 func (sa *SemanticAnalyzer) isInvalidInfixType(t types.Type) bool {

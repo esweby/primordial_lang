@@ -33,19 +33,31 @@ func (sa *SemanticAnalyzer) analyzeDeclareStatement(stmt *ast.DeclareStatement) 
 		return fnType
 	}
 
+	if stmt.Type != nil {
+		resolved := sa.resolveType(stmt.Type)
+		if !types.IsInvalid(resolved) {
+			stmt.Type = resolved
+		}
+	}
+
 	// Normal (non‑function) value analysis (existing code)
 	rhsType := sa.analyzeExpression(stmt.Value)
 	if types.IsInvalid(rhsType) {
 		return types.InvalidType
 	}
 
-	if stmt.Type != nil && !types.IsAssignable(stmt.Type, rhsType) {
-		sa.error(fmt.Sprintf("declaration type mismatch: expected %s, got %s",
-			stmt.Type.Name(), rhsType.Name()))
-		return types.InvalidType
-	}
-
-	if stmt.Type == nil {
+	if stmt.Type != nil {
+		if err := sa.requireAssignable(stmt.Type, rhsType, stmt.Value); err != nil {
+			sa.error("declaration type mismatch: " + err.Error())
+			return types.InvalidType
+		}
+	} else {
+		resolvedType, err := sa.defaultInteger(stmt.Value, rhsType)
+		if err != nil {
+			sa.error(err.Error())
+			return types.InvalidType
+		}
+		rhsType = resolvedType
 		stmt.SetInferredType(rhsType)
 	}
 
@@ -77,19 +89,42 @@ func (sa *SemanticAnalyzer) analyzeReturnStatement(stmt *ast.ReturnStatement) {
 	for i, rv := range stmt.ReturnValues {
 		valType := sa.analyzeExpression(rv)
 		expected := sa.returnTypes[i]
-		if !types.IsAssignable(expected, valType) {
-			sa.error(fmt.Sprintf("return value %d: expected %s, got %s",
-				i, expected.Name(), valType.Name()))
+		if err := sa.requireAssignable(expected, valType, rv); err != nil {
+			sa.error(fmt.Sprintf("return value %d: %s", i, err.Error()))
 		}
 	}
 }
 
 func (sa *SemanticAnalyzer) analyzeAssignmentStatement(stmt *ast.AssignStatement) types.Type {
-	// The LHS must be an identifier (for now).
 	ident := stmt.Name
 	if ident == nil {
-		sa.error("member assignment is not supported yet")
-		return types.InvalidType
+		target, ok := stmt.Target.(*ast.MemberExpression)
+		if !ok {
+			sa.error("invalid assignment target")
+			return types.InvalidType
+		}
+		member, ok := sa.resolveMember(target)
+		if !ok {
+			return types.InvalidType
+		}
+		if member.Kind != types.MemberProperty || len(member.ReturnTypes) != 1 {
+			sa.error(fmt.Sprintf("cannot assign to method: %s", member.Name))
+			return types.InvalidType
+		}
+		if member.StructOwner != sa.currentStruct {
+			sa.error(fmt.Sprintf("cannot assign to field outside its struct: %s", member.Name))
+			return types.InvalidType
+		}
+
+		rhsType := sa.analyzeExpression(stmt.Value)
+		if types.IsInvalid(rhsType) {
+			return types.InvalidType
+		}
+		if err := sa.requireAssignable(member.ReturnTypes[0], rhsType, stmt.Value); err != nil {
+			sa.error("assignment type mismatch: " + err.Error())
+			return types.InvalidType
+		}
+		return member.ReturnTypes[0]
 	}
 
 	// Look up the variable.
@@ -117,9 +152,8 @@ func (sa *SemanticAnalyzer) analyzeAssignmentStatement(stmt *ast.AssignStatement
 	}
 
 	// Type check.
-	if !types.IsTypesEqual(declSym.Type(), rhsType) {
-		sa.error(fmt.Sprintf("assignment type mismatch: expected %s, got %s",
-			declSym.Type().Name(), rhsType.Name()))
+	if err := sa.requireAssignable(declSym.Type(), rhsType, stmt.Value); err != nil {
+		sa.error("assignment type mismatch: " + err.Error())
 		return types.InvalidType
 	}
 

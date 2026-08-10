@@ -32,6 +32,7 @@ func TestParseStructFieldDeclarations(t *testing.T) {
 	input := `struct Profile {
 		pub displayName: string;
 		score: int64 = 100;
+		visits: uint32 = 0;
 		owner: Person;
 		friends: []Person;
 		history: [3]Person;
@@ -40,8 +41,8 @@ func TestParseStructFieldDeclarations(t *testing.T) {
 	requireNoParserErrors(t, parser)
 
 	declaration := requireStructStatement(t, program.Statements[0])
-	if len(declaration.Fields) != 5 {
-		t.Fatalf("expected 5 fields, got %d", len(declaration.Fields))
+	if len(declaration.Fields) != 6 {
+		t.Fatalf("expected 6 fields, got %d", len(declaration.Fields))
 	}
 
 	tests := []struct {
@@ -52,6 +53,7 @@ func TestParseStructFieldDeclarations(t *testing.T) {
 	}{
 		{name: "displayName", typeName: "string", public: true},
 		{name: "score", typeName: "int64", hasDefault: true},
+		{name: "visits", typeName: "uint32", hasDefault: true},
 		{name: "owner", typeName: "Person"},
 		{name: "friends", typeName: "[]Person"},
 		{name: "history", typeName: "[3]Person"},
@@ -77,9 +79,9 @@ func TestParseStructFieldDeclarations(t *testing.T) {
 		t.FailNow()
 	}
 
-	owner, ok := declaration.Fields[2].Type.(*types.Named)
+	owner, ok := declaration.Fields[3].Type.(*types.Named)
 	if !ok {
-		t.Fatalf("expected owner to use a named type, got %T", declaration.Fields[2].Type)
+		t.Fatalf("expected owner to use a named type, got %T", declaration.Fields[3].Type)
 	}
 	if owner.Underlying != types.InvalidType {
 		t.Fatalf("expected unresolved named type, got underlying type %s", owner.Underlying.Name())
@@ -115,6 +117,17 @@ func TestParseStructDeclarationWithTypeFunctionOnly(t *testing.T) {
 	}
 	if len(function.Body.Statements) != 1 {
 		t.Fatalf("expected one function statement, got %d", len(function.Body.Statements))
+	}
+}
+
+func TestRejectMutableStructFieldModifier(t *testing.T) {
+	_, parser := parseStructTestProgram(`struct Person { mut name: string; }`)
+	diagnostics := parser.Diagnostics()
+	if len(diagnostics) == 0 {
+		t.Fatal("expected mut struct field modifier to be rejected")
+	}
+	if diagnostics[0].Code != "P1304" || diagnostics[0].Message != "struct fields only support the pub modifier" {
+		t.Fatalf("unexpected parser diagnostic: %+v", diagnostics[0])
 	}
 }
 

@@ -30,6 +30,8 @@ func (l *Lexer) readChar() {
 	if l.readPosition >= len(l.input) {
 		l.ch = 0
 		l.position = l.readPosition
+		l.readPosition++
+		l.column++
 		return
 	}
 
@@ -43,6 +45,7 @@ func (l *Lexer) NextToken() token.Token {
 	var tok token.Token
 
 	l.skipWhitespace()
+	start := l.currentPosition()
 
 	switch l.ch {
 	case '=':
@@ -102,27 +105,54 @@ func (l *Lexer) NextToken() token.Token {
 			tok = l.newToken(token.RTAG, l.ch)
 		}
 	case '"':
+		literal, terminated := l.readString()
+		tok.Literal = literal
+		if !terminated {
+			tok.Type = token.ILLEGAL
+			tok.LexError = "unterminated string literal"
+			l.setTokenSpan(&tok, start, l.currentPosition())
+			return tok
+		}
 		tok.Type = token.STRING_LITERAL
-		tok.Literal = l.readString()
 	case 0:
 		tok.Literal = ""
 		tok.Type = token.EOF
+		l.setTokenSpan(&tok, start, start)
+		return tok
 	default:
 		if isLetter(l.ch) {
 			tok.Literal = l.readIdentifier()
 			tok.Type = token.LookupIdent(tok.Literal)
+			l.setTokenSpan(&tok, start, l.currentPosition())
 			return tok
 		} else if isDigit(l.ch) {
 			tok.Type = token.INT_LITERAL
 			tok.Literal = l.readNumber()
+			l.setTokenSpan(&tok, start, l.currentPosition())
 			return tok
 		} else {
 			tok = l.newToken(token.ILLEGAL, l.ch)
+			tok.LexError = "unrecognized character " + tok.Literal
 		}
 	}
 
 	l.readChar()
+	l.setTokenSpan(&tok, start, l.currentPosition())
 	return tok
+}
+
+func (l *Lexer) currentPosition() token.Position {
+	return token.Position{
+		Offset: l.position,
+		Line:   l.line,
+		Column: l.column,
+	}
+}
+
+func (l *Lexer) setTokenSpan(tok *token.Token, start, end token.Position) {
+	tok.Line = start.Line
+	tok.Column = start.Column
+	tok.Span = token.Span{Start: start, End: end}
 }
 
 func (l *Lexer) peekChar() byte {
@@ -151,16 +181,17 @@ func (l *Lexer) readNumber() string {
 	return l.input[position:l.position]
 }
 
-func (l *Lexer) readString() string {
+func (l *Lexer) readString() (string, bool) {
 	position := l.position + 1
 	for {
 		l.readChar()
-		if l.ch == '"' || l.ch == 0 {
-			break
+		if l.ch == '"' {
+			return l.input[position:l.position], true
+		}
+		if l.ch == 0 {
+			return l.input[position:l.position], false
 		}
 	}
-
-	return l.input[position:l.position]
 }
 
 func (l *Lexer) skipWhitespace() {
@@ -173,8 +204,6 @@ func (l *Lexer) newToken(tokenType token.TokenType, ch byte) token.Token {
 	return token.Token{
 		Type:    tokenType,
 		Literal: string(ch),
-		Line:    l.line,
-		Column:  l.column,
 	}
 }
 
