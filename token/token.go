@@ -28,7 +28,7 @@ const (
 	PLUS
 	MINUS
 	BANG
-	ASTERIK
+	ASTERISK
 	FORWARD_SLASH
 	EQUALS
 	NOT_EQUALS
@@ -79,7 +79,7 @@ var tokenNames = [...]string{
 	PLUS:                   "PLUS",
 	MINUS:                  "MINUS",
 	BANG:                   "BANG",
-	ASTERIK:                "ASTERIK",
+	ASTERISK:                "ASTERISK",
 	FORWARD_SLASH:          "FORWARD_SLASH",
 	EQUALS:                 "EQUALS",
 	NOT_EQUALS:             "NOT_EQUALS",

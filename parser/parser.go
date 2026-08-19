@@ -36,7 +36,7 @@ var precedences = map[token.TokenType]int{
 	token.PLUS:                   SUM,
 	token.MINUS:                  SUM,
 	token.FORWARD_SLASH:          PRODUCT,
-	token.ASTERIK:                PRODUCT,
+	token.ASTERISK:                PRODUCT,
 	token.LPAREN:                 CALL,
 	token.LBRACE:                 CALL,
 	token.DOT:                    DOT,
@@ -152,7 +152,7 @@ func (p *Parser) registerInfixFns() {
 	p.registerInfix(token.PLUS, p.parseInfixExpression)
 	p.registerInfix(token.MINUS, p.parseInfixExpression)
 	p.registerInfix(token.FORWARD_SLASH, p.parseInfixExpression)
-	p.registerInfix(token.ASTERIK, p.parseInfixExpression)
+	p.registerInfix(token.ASTERISK, p.parseInfixExpression)
 	p.registerInfix(token.EQUALS, p.parseInfixExpression)
 	p.registerInfix(token.NOT_EQUALS, p.parseInfixExpression)
 	p.registerInfix(token.LTAG, p.parseInfixExpression)

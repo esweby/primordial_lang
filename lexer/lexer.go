@@ -77,7 +77,7 @@ func (l *Lexer) NextToken() token.Token {
 			tok = l.newToken(token.BANG, l.ch)
 		}
 	case '*':
-		tok = l.newToken(token.ASTERIK, l.ch)
+		tok = l.newToken(token.ASTERISK, l.ch)
 	case '/':
 		tok = l.newToken(token.FORWARD_SLASH, l.ch)
 	case '(':
