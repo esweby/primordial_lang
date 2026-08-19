@@ -58,7 +58,6 @@ const (
 	FALSE
 	IF
 	ELSE
-	ELSEIF
 	RETURN
 	PUB
 	MUT
