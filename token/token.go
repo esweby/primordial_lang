@@ -51,6 +51,7 @@ const (
 
 	// Keywords
 	FN
+	MAP
 	STRUCT
 	IMPL
 	TRUE
@@ -99,6 +100,7 @@ var tokenNames = [...]string{
 	// Keywords
 	FN:     "FN",
 	STRUCT: "STRUCT",
+	MAP:    "MAP",
 	IMPL:   "IMPL",
 	TRUE:   "TRUE",
 	FALSE:  "FALSE",
@@ -112,6 +114,7 @@ var tokenNames = [...]string{
 
 var keywords = map[string]TokenType{
 	"fn":     FN,
+	"map":	  MAP,
 	"struct": STRUCT,
 	"impl":   IMPL,
 	"true":   TRUE,

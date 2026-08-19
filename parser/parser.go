@@ -144,6 +144,7 @@ func (p *Parser) registerPrefixFns() {
 	p.registerPrefix(token.FN, p.parseFunctionLiteral)
 	p.registerPrefix(token.STRING_LITERAL, p.parseStringLiteral)
 	p.registerPrefix(token.LBRACKET, p.parseLeftBracket)
+	p.registerPrefix(token.MAP, p.parseMapLiterals)
 }
 
 func (p *Parser) registerInfixFns() {

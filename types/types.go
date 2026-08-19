@@ -20,6 +20,7 @@ const (
 	KindSlice
 	KindFunction
 	KindTuple
+	KindMap
 	KindStruct
 	KindUntypedInteger
 )
@@ -219,6 +220,17 @@ func (n *Named) LookupTypeMember(name string) (MemberDefinition, bool) {
 	}
 	return provider.LookupTypeMember(name)
 }
+
+type Map struct {
+	Key Type
+	Value Type
+}
+
+func (m *Map) Name() string { return "map[" + m.Key.Name() + "]" + m.Value.Name() }
+func (m *Map) Size() int    { return 16 }
+func (m *Map) Kind() Kind   { return KindMap }
+func (m *Map) GetKeyType() Type { return m.Key }
+func (m *Map) GetValueType() Type { return m.Value }
 
 type StructField struct {
 	Name       string

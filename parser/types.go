@@ -7,35 +7,60 @@ import (
 	"github.com/esweby/primordial_lang/types"
 )
 
-func (p *Parser) parseCurrentType() (types.Type, bool) {
-	if !p.curTokenIs(token.IDENT) {
-		p.addDiagnostic("P1401", "expected type name, found "+describeToken(p.curToken), p.curToken, token.IDENT)
-		return nil, false
+func (p *Parser) parseType() (types.Type, bool) {
+	switch p.curToken.Type {
+	case token.MAP:
+		return p.parseMapType()
+	case token.LBRACKET:
+		return p.parseCollectionType()
+	default:
+		return p.parseCurrentType()
 	}
-
-	if builtin, ok := types.GetBuiltin(p.curToken.Literal); ok {
-		return builtin, true
-	}
-
-	return &types.Named{
-		CustomName: p.curToken.Literal,
-		Underlying: types.InvalidType,
-	}, true
 }
 
-// parseTypeAfterColon parses a scalar, array, or slice type annotation. It
-// expects curToken to be the colon and leaves curToken on the final type token.
-func (p *Parser) parseTypeAfterColon() (types.Type, bool) {
-	if !p.curTokenIs(token.COLON) {
-		p.addDiagnostic("P1402", "expected ':' before type annotation, found "+describeToken(p.curToken), p.curToken, token.COLON)
+func (p *Parser) parseMapType() (types.Type, bool) {
+	if !p.curTokenIs(token.MAP) {
+		p.addDiagnostic("P1406", "expected map token", p.curToken)
 		return nil, false
 	}
 
 	p.nextToken()
 	if !p.curTokenIs(token.LBRACKET) {
-		return p.parseCurrentType()
+		p.addDiagnostic("P1406", "expected '[' after map", p.curToken)
+		return nil, false
 	}
 
+	p.nextToken()
+	keyType, ok := p.parseCurrentType()
+	if !ok {
+		before := len(p.diagnostics)
+		p.ensureDiagnostic(before, "P1407", "expected type after '['", p.curToken)
+		return nil, false
+	}
+
+	p.nextToken()
+	if !p.curTokenIs(token.RBRACKET) {
+		p.addDiagnostic("P1408", "expected ']' after type", p.curToken)
+		return nil, false
+	}
+
+	p.nextToken()
+	mt := &types.Map{
+		Key: keyType,
+	}
+
+	vt, ok := p.parseType()
+	if !ok {
+		before := len(p.diagnostics)
+		p.ensureDiagnostic(before, "P1407", "expected type after ']'", p.curToken)
+		return nil, false
+	}
+	mt.Value = vt
+	
+	return mt, true
+}
+
+func (p *Parser) parseCollectionType() (types.Type, bool) {
 	p.nextToken()
 	if p.curTokenIs(token.RBRACKET) {
 		p.nextToken()
@@ -71,4 +96,20 @@ func (p *Parser) parseTypeAfterColon() (types.Type, bool) {
 	}
 
 	return types.NewArray(elementType, int(length)), true
+}
+
+func (p *Parser) parseCurrentType() (types.Type, bool) {
+	if !p.curTokenIs(token.IDENT) {
+		p.addDiagnostic("P1401", "expected type name, found "+describeToken(p.curToken), p.curToken, token.IDENT)
+		return nil, false
+	}
+
+	if builtin, ok := types.GetBuiltin(p.curToken.Literal); ok {
+		return builtin, true
+	}
+
+	return &types.Named{
+		CustomName: p.curToken.Literal,
+		Underlying: types.InvalidType,
+	}, true
 }

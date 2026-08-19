@@ -123,6 +123,10 @@ func IsTuple(t Type) bool {
 	return t.Kind() == KindTuple
 }
 
+func IsMap(t Type) bool {
+	return t.Kind() == KindMap
+}
+
 func IsVoid(t Type) bool {
 	return t.Kind() == KindVoid
 }

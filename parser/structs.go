@@ -106,7 +106,8 @@ func (p *Parser) parseStructField() ast.Node {
 
 	if p.curTokenIs(token.COLON) {
 		before := len(p.diagnostics)
-		declaredType, ok := p.parseTypeAfterColon()
+		p.nextToken()
+		declaredType, ok := p.parseType()
 		if !ok {
 			p.ensureDiagnostic(before, "P1310", "expected struct field type", p.curToken, token.IDENT)
 			return nil

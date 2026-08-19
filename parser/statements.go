@@ -69,7 +69,8 @@ func (p *Parser) parseDeclareStatement() *ast.DeclareStatement {
 
 	if p.curTokenIs(token.COLON) {
 		before := len(p.diagnostics)
-		declaredType, ok := p.parseTypeAfterColon()
+		p.nextToken()
+		declaredType, ok := p.parseType()
 		if !ok {
 			p.ensureDiagnostic(before, "P1401", "expected type after ':'", p.curToken, token.IDENT)
 			return nil
