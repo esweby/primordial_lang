@@ -91,6 +91,8 @@ func (sa *SemanticAnalyzer) analyzeExpression(exp ast.Expression) types.Type {
 		return sa.analyzeIndexExpression(e)
 	case *ast.StructLiteral:
 		return sa.analyzeStructLiteral(e)
+	case *ast.MapLiteral:
+		return sa.analyzeMapLiteral(e)
 	default:
 		sa.error(fmt.Sprintf("analyzeExpression received unexpected expression: %T", e))
 		return types.InvalidType
