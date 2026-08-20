@@ -32,11 +32,21 @@ const (
 	SLICE_OBJ             = "SLICE"
 	STRUCT_DEFINITION_OBJ = "STRUCT_DEFINITION"
 	STRUCT_OBJ            = "STRUCT"
+	MAP_OBJ				  = "MAP"
 )
 
 type Object interface {
 	Type() ObjectType
 	Inspect() string
+}
+
+type Hasheable interface {
+	HashKey() HashKey
+}
+
+type HashKey struct {
+	Type ObjectType
+	Value string
 }
 
 type Integer struct {
@@ -45,31 +55,36 @@ type Integer struct {
 }
 
 func (i *Integer) Type() ObjectType { return INTEGER_OBJ }
-
 func (i *Integer) Inspect() string { return i.Value.String() }
+func (i *Integer) HashKey() HashKey {
+    return HashKey{Type: i.Type(), Value: i.Inspect()}
+}
 
 type Boolean struct {
 	Value bool
 }
 
 func (b *Boolean) Type() ObjectType { return BOOLEAN_OBJ }
-
 func (b *Boolean) Inspect() string { return fmt.Sprintf("%t", b.Value) }
+func (b *Boolean) HashKey() HashKey {
+    return HashKey{Type: b.Type(), Value: b.Inspect()}
+}
 
 type String struct {
 	Value string
 }
 
 func (s *String) Type() ObjectType { return STRING_OBJ }
-
 func (s *String) Inspect() string { return s.Value }
+func (s *String) HashKey() HashKey {
+    return HashKey{Type: s.Type(), Value: s.Value}
+}
 
 type ReturnValue struct {
 	Value []Object
 }
 
 func (rv *ReturnValue) Type() ObjectType { return RETURN_VALUES_OBJ }
-
 func (rv *ReturnValue) Inspect() string {
 	if len(rv.Value) == 1 {
 		return rv.Value[0].Inspect()
@@ -88,8 +103,8 @@ type Error struct {
 }
 
 func (e *Error) Type() ObjectType { return ERROR_OBJ }
-
 func (e *Error) Inspect() string { return "ERROR: " + e.Message }
+
 
 type Function struct {
 	Name        string
@@ -100,7 +115,6 @@ type Function struct {
 }
 
 func (f *Function) Type() ObjectType { return FUNCTION_OBJ }
-
 func (f *Function) Inspect() string {
 	var out bytes.Buffer
 
@@ -142,7 +156,6 @@ type Array struct {
 }
 
 func (a *Array) Type() ObjectType { return ARRAY_OBJ }
-
 func (a *Array) Inspect() string {
 	elements := make([]string, 0, len(a.Elements))
 	for _, e := range a.Elements {
@@ -157,7 +170,6 @@ type Slice struct {
 }
 
 func (s *Slice) Type() ObjectType { return SLICE_OBJ }
-
 func (s *Slice) Inspect() string {
 	elements := make([]string, 0, len(s.Elements))
 	for _, e := range s.Elements {
@@ -172,7 +184,6 @@ type Tuple struct {
 }
 
 func (t *Tuple) Type() ObjectType { return TUPLE_OBJ }
-
 func (t *Tuple) Inspect() string {
 	elements := make([]string, 0, len(t.Elements))
 	for _, e := range t.Elements {
@@ -187,7 +198,6 @@ type Builtin struct {
 }
 
 func (b *Builtin) Type() ObjectType { return BUILTIN_OBJ }
-
 func (b *Builtin) Inspect() string { return "builtin function" }
 
 type StructDefinition struct {
@@ -217,4 +227,30 @@ func (s *Struct) Inspect() string {
 		fields = append(fields, name+": "+s.Fields[name].Inspect())
 	}
 	return s.Name + "{" + strings.Join(fields, ", ") + "}"
+}
+
+type Map struct {
+	Pairs map[HashKey]Object
+}
+
+func (m *Map) Type() ObjectType { return MAP_OBJ }
+func (m *Map) Inspect() string {
+    keys := make([]HashKey, 0, len(m.Pairs))
+    for key := range m.Pairs {
+        keys = append(keys, key)
+    }
+
+    sort.Slice(keys, func(i, j int) bool {
+        if keys[i].Type != keys[j].Type {
+            return keys[i].Type < keys[j].Type
+        }
+        return keys[i].Value < keys[j].Value
+    })
+
+    fields := make([]string, 0, len(keys))
+    for _, key := range keys {
+        fields = append(fields, key.Value+": "+m.Pairs[key].Inspect())
+    }
+
+    return "{" + strings.Join(fields, ", ") + "}"
 }
