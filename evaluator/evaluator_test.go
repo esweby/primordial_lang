@@ -1,6 +1,7 @@
 package evaluator
 
 import (
+	"fmt"
 	"math/big"
 	"testing"
 
@@ -479,6 +480,70 @@ func TestArrayOperatorExpressions(t *testing.T) {
 	}
 }
 
+
+func TestMapLiterals(t *testing.T) {
+	tests := []struct{
+		input string
+		keys []any
+		values []any
+		numPairs int
+	}{
+		{`map[int32]string{ 10: "graham" }`, []any{10}, []any{"graham"}, 1},
+		{`map[string]string{ "one": "one", "two": "two", "three":"three", }`, []any{"one", "two", "three"}, []any{"one", "two", "three"}, 3},
+	}
+
+	for i, tt := range tests {
+		evaluated := testEval(tt.input)
+		m, ok := evaluated.(*object.Map)
+		if !ok {
+			t.Fatalf("test %d: expected object.Map, got=%T", i, evaluated)
+		}
+
+		if len(m.Pairs) != tt.numPairs {
+			t.Fatalf("test %d: expected %d pairs in map, got %d", i, tt.numPairs, len(m.Pairs))
+		}
+
+		for k, key := range tt.keys {
+			expectedKey := key
+            expectedValue := tt.values[k]
+
+            hashKey := hashKeyFromAny(t, expectedKey)
+
+            value, ok := m.Pairs[hashKey]
+            if !ok {
+                t.Errorf("test %d: map does not contain key %v", i, expectedKey)
+                continue
+            }
+
+            if value.Inspect() != fmt.Sprintf("%v", expectedValue) {
+                t.Errorf("test %d: for key %v, expected value %v, got %s",
+                    i, expectedKey, expectedValue, value.Inspect())
+            }
+		}
+	}
+}
+
+func TestAccessMapLiterals(t *testing.T) {
+	tests := []struct{
+		input string
+		target string
+	}{
+		{`map[int32]string{ 1: "one"}[1]`, "one"},
+	}
+
+	for i, tt := range tests {
+		evaluated := testEval(tt.input)
+		str, ok := evaluated.(*object.String)
+		if !ok {
+			t.Fatalf("test %d: expected object.String, got %T (%+v)", i, evaluated, evaluated)
+		}
+
+		if str.Value != tt.target {
+			t.Errorf("test %d: expected string '%s' got %s", i, tt.target, str.Value)
+		}
+	}
+}
+
 func TestSliceOperatorExpressions(t *testing.T) {
 	tests := []struct {
 		input    string
@@ -578,4 +643,21 @@ func testErrorObject(t *testing.T, obj object.Object) bool {
 	}
 
 	return true
+}
+
+func hashKeyFromAny(t *testing.T, v any) object.HashKey {
+	t.Helper()
+	switch val := v.(type) {
+	case int:
+        return (&object.Integer{Value: big.NewInt(int64(val))}).HashKey()
+    case int64:
+        return (&object.Integer{Value: big.NewInt(val)}).HashKey()
+    case string:
+        return (&object.String{Value: val}).HashKey()
+    case bool:
+        return (&object.Boolean{Value: val}).HashKey()
+    default:
+        t.Fatalf("unsupported expected key type %T", v)
+        return object.HashKey{} // unreachable
+	}
 }

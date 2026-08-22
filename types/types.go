@@ -31,6 +31,12 @@ type Type interface {
 	Kind() Kind
 }
 
+type Indexable interface{
+	Type
+	IndexType() Type
+	ElementType() Type
+}
+
 type Invalid struct{}
 
 func (inv *Invalid) Name() string { return "invalid" }
@@ -148,7 +154,6 @@ type Array struct {
 }
 
 func (al *Array) ElementType() Type { return al.elementType }
-
 func (al *Array) Length() int { return al.length }
 func (al *Array) Size() int   { return al.length * al.elementType.Size() }
 func (al *Array) Kind() Kind  { return KindArray }
@@ -164,14 +169,15 @@ type Slice struct {
 	length      int
 }
 
-func (al *Slice) ElementType() Type { return al.elementType }
-
-func (al *Slice) Length() int { return al.length }
-func (al *Slice) Size() int   { return al.length * al.elementType.Size() }
-func (al *Slice) Kind() Kind  { return KindSlice }
-func (al *Slice) Name() string {
-	return "[]" + al.elementType.Name()
+func (sl *Slice) ElementType() Type { return sl.elementType }
+func (sl *Slice) Length() int { return sl.length }
+func (sl *Slice) Size() int   { return sl.length * sl.elementType.Size() }
+func (sl *Slice) Kind() Kind  { return KindSlice }
+func (sl *Slice) Name() string {
+	return "[]" + sl.elementType.Name()
 }
+func (sl *Slice) IndexType() Type { return Int64Type }
+
 func NewSlice(t Type) *Slice {
 	return &Slice{elementType: t, length: 0}
 }
@@ -229,8 +235,8 @@ type Map struct {
 func (m *Map) Name() string { return "map[" + m.Key.Name() + "]" + m.Value.Name() }
 func (m *Map) Size() int    { return 16 }
 func (m *Map) Kind() Kind   { return KindMap }
-func (m *Map) GetKeyType() Type { return m.Key }
-func (m *Map) GetValueType() Type { return m.Value }
+func (m *Map) IndexType() Type { return m.Key }
+func (m *Map) ElementType() Type { return m.Value }
 
 type StructField struct {
 	Name       string

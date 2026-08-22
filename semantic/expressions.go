@@ -406,30 +406,53 @@ func (sa *SemanticAnalyzer) analyzeIfExpression(ifExpr *ast.IfExpression, expect
 }
 
 func (sa *SemanticAnalyzer) analyzeIndexExpression(exp *ast.IndexExpression) types.Type {
-	collectionType := sa.analyzeExpression(exp.Left)
-	indexType := sa.analyzeExpression(exp.Index)
+    lhs := sa.analyzeExpression(exp.Left)
+    indexType := sa.analyzeExpression(exp.Index)
+
+    collection, ok := lhs.(types.Indexable)
+    if !ok {
+        sa.error(fmt.Sprintf("type %s cannot be indexed", lhs.Name()))
+        return types.InvalidType
+    }
+
+    expectedIndexType := collection.IndexType()
+
+    // If index is untyped integer and expected is integer, adopt expected type
+    if types.IsUntypedInteger(indexType) {
+        if _, ok := expectedIndexType.(*types.Integer); ok {
+			if il, ok := exp.Index.(*ast.IntegerLiteral); ok {
+				il.SetResolvedType(expectedIndexType)
+				indexType = expectedIndexType
+			}
+        }
+    }
+
+    if !types.IsAssignable(indexType, expectedIndexType) {
+        sa.error(fmt.Sprintf("index type mismatch: got %s, want %s", indexType.Name(), expectedIndexType.Name()))
+        return types.InvalidType
+    }
+
+    return collection.ElementType()
+}
+
+func (sa *SemanticAnalyzer) checkIntegerIndex(
+	exp *ast.IndexExpression, 
+	indexType types.Type,
+) types.Type {
 	if types.IsUntypedInteger(indexType) {
 		resolved, err := sa.defaultInteger(exp.Index, indexType)
 		if err != nil {
 			sa.error(err.Error())
 			return types.InvalidType
 		}
-		indexType = resolved
-	}
-	if !types.IsInteger(indexType) {
-		sa.error(fmt.Sprintf("collection index must be an integer, got %s", indexType.Name()))
-		return types.InvalidType
+
+		if types.IsInteger(resolved) {
+			return resolved
+		}
 	}
 
-	switch collection := collectionType.(type) {
-	case *types.Array:
-		return collection.ElementType()
-	case *types.Slice:
-		return collection.ElementType()
-	default:
-		sa.error(fmt.Sprintf("type %s cannot be indexed", collectionType.Name()))
-		return types.InvalidType
-	}
+	sa.error(fmt.Sprintf("collection index must be an integer, got %s", indexType.Name()))
+	return types.InvalidType
 }
 
 func (sa *SemanticAnalyzer) analyzeLenCall(args []ast.Expression) types.Type {

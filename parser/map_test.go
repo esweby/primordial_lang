@@ -366,3 +366,34 @@ func TestMapDeclaration(t *testing.T) {
 		}
 	}
 }
+
+func TestAccessMapValueByString(t *testing.T) {
+	tests := []struct{
+		input string
+		access string
+	}{
+		{`map[string]string{ "one": "one", }["one"]`, "one"},
+	}
+
+	for i, tt := range tests {
+		l := lexer.New(tt.input)
+		p := New(l)
+
+		program := p.ParseProgram()
+		requireNoParserErrors(t, p)
+
+		stmt, ok := program.Statements[0].(*ast.ExpressionStatement)
+		if !ok {
+			t.Fatalf("test %d: program.Statements[0] not ast.ExpressionStatement. Got=%T", i, program.Statements[0])
+		}
+
+		indexExp, ok := stmt.Expression.(*ast.IndexExpression)
+		if !ok {
+			t.Fatalf("test %d: program.Statements[0] not ast.IndexExpression. Got=%T", i, stmt.Expression)
+		}
+
+		if indexExp.Index.String() != tt.access {
+			t.Fatalf("test %d: expected accesser to be '%s' got %s", i, tt.access, indexExp.Index.String())
+		}
+	}
+}

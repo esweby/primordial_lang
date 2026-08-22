@@ -111,6 +111,7 @@ type IndexExpression struct {
 	Token token.Token
 	Left  Expression
 	Index Expression
+	IndexType *types.Type
 }
 
 func (ie *IndexExpression) expressionNode() {}

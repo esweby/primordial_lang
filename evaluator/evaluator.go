@@ -38,6 +38,8 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		return nil
 	case *ast.StructLiteral:
 		return evalStructLiteral(node, env)
+	case *ast.MapLiteral:
+		return evalMapLiteral(node, env)
 	case *ast.ArrayLiteral:
 		return evalArrayLiteral(node, env)
 	case *ast.SliceLiteral:
@@ -314,6 +316,8 @@ func evalIndexExpression(left, index object.Object) object.Object {
 		return evalArrayIndexExpression(left, index)
 	case left.Type() == object.SLICE_OBJ && index.Type() == object.INTEGER_OBJ:
 		return evalSliceIndexExpression(left, index)
+	case left.Type() == object.MAP_OBJ:
+		return evalMapIndexExpression(left, index)
 	default:
 		return newError("index operator not supported: %s", left.Type())
 	}
@@ -349,6 +353,27 @@ func evalSliceIndexExpression(array, index object.Object) object.Object {
 	}
 
 	return slice.Elements[idx]
+}
+
+func evalMapIndexExpression(m, index object.Object) object.Object {
+	mo := m.(*object.Map)
+
+	coercedKey, err := coerceRuntimeArgument(index, mo.MapType.Key)
+	if err != nil {
+		return newError("map index: %s", err.Error())
+	}
+
+	hashable, ok := coercedKey.(object.Hashable)
+	if !ok {
+		return newError("unhashable type as map key: %s", coercedKey.Type())
+	}
+
+	value, ok := mo.Pairs[hashable.HashKey()]
+	if !ok {
+		return newError("key not found in map: %s", hashable.HashKey())
+	}
+
+	return value
 }
 
 func applyFunction(fn object.Object, args []object.Object) object.Object {
@@ -582,6 +607,54 @@ func evalStructLiteral(literal *ast.StructLiteral, env *object.Environment) obje
 	}
 
 	return &object.Struct{Name: literal.Name.Value, Definition: definition, Fields: fields}
+}
+
+func evalMapLiteral(m *ast.MapLiteral, env *object.Environment) object.Object {
+    mapType, ok := m.Type.(*types.Map)
+    if !ok {
+        return newError("invalid map type: %T", m.Type)
+    }
+
+    pairs := make(map[object.HashKey]object.Object, len(m.Pairs))
+
+    for _, pair := range m.Pairs {
+        // Evaluate key expression to get an object
+        keyObj := Eval(pair.Key, env)
+        if isError(keyObj) {
+            return keyObj
+        }
+
+        // Coerce key to the declared key type (optional but recommended)
+        coercedKey, err := coerceRuntimeArgument(keyObj, mapType.Key)
+        if err != nil {
+            return newError("map key %s: %s", pair.Key.String(), err.Error())
+        }
+
+        // Compute hash key from the coerced key object
+        hashKey, ok := coercedKey.(object.Hashable)
+        if !ok {
+            return newError("coercedKey is not object.Hashabkle")
+        }
+
+        // Evaluate value expression
+        valueObj := Eval(pair.Value, env)
+        if isError(valueObj) {
+            return valueObj
+        }
+
+        // Coerce value to the declared value type
+        coercedValue, err := coerceRuntimeArgument(valueObj, mapType.Value)
+        if err != nil {
+            return newError("map value for key %s: %s", pair.Key.String(), err.Error())
+        }
+
+        pairs[hashKey.HashKey()] = coercedValue
+    }
+
+    return &object.Map{
+		MapType: m.Type.(*types.Map),
+		Pairs: pairs,
+	}
 }
 
 func evalIntegerConversion(call *ast.CallExpression, target types.Type, env *object.Environment) object.Object {

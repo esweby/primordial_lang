@@ -40,7 +40,9 @@ type Object interface {
 	Inspect() string
 }
 
-type Hasheable interface {
+type Hashable interface {
+	Type() ObjectType
+	Inspect() string
 	HashKey() HashKey
 }
 
@@ -230,6 +232,7 @@ func (s *Struct) Inspect() string {
 }
 
 type Map struct {
+	MapType *types.Map
 	Pairs map[HashKey]Object
 }
 
