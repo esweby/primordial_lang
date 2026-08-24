@@ -175,7 +175,7 @@ func (p *Parser) parseExpressionStatement() ast.Statement {
 
 	if p.peekTokenIs(token.ASSIGN) {
 		switch stmt.Expression.(type) {
-		case *ast.Identifier, *ast.MemberExpression:
+		case *ast.Identifier, *ast.MemberExpression, *ast.IndexExpression:
 		default:
 			p.addDiagnostic("P1602", "assignment target must be an identifier or member expression", p.curToken)
 			return nil

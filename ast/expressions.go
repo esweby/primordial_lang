@@ -9,6 +9,21 @@ import (
 	"github.com/esweby/primordial_lang/types"
 )
 
+type Identifier struct {
+	Token token.Token
+	Value string
+}
+
+func (i *Identifier) expressionNode() {}
+
+func (i *Identifier) isAssignable() {}
+
+func (i *Identifier) TokenLiteral() string {
+	return i.Token.Literal
+}
+
+func (i *Identifier) String() string { return i.Value }
+
 // TupleTargetExpression is the parenthesized identifier list used on the
 // left-hand side of tuple declarations and assignments.
 type TupleTargetExpression struct {
@@ -205,6 +220,8 @@ type MemberExpression struct {
 }
 
 func (me *MemberExpression) expressionNode() {}
+
+func (me *MemberExpression) isAssignable() {}
 
 func (me *MemberExpression) TokenLiteral() string {
 	return me.Token.Literal

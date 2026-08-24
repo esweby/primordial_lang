@@ -397,3 +397,52 @@ func TestAccessMapValueByString(t *testing.T) {
 		}
 	}
 }
+
+func TestAssignToMap(t *testing.T) {
+	tests := []struct{
+		input string
+		ident string
+		indexValue string
+		value string
+	}{
+		{`x := map[string]string{}; x["one"] = "one"`, "x", "one", "one"},
+		{`x := map[string]string{ "one": "one", }; x["two"] = "two"`, "x", "two", "two"},
+	}
+
+	for i, tt := range tests {
+		l := lexer.New(tt.input)
+		p := New(l)
+
+		program := p.ParseProgram()
+		requireNoParserErrors(t, p)
+
+		as := program.Statements[1].(*ast.AssignStatement)
+
+		index, ok := as.Target.(*ast.IndexExpression)
+		if !ok {
+			t.Fatalf(
+				"test %d: expected as.Target to be ast.IndexExpression got %T",
+				i,
+				as.Target,
+			)
+		}
+
+		if index.Left.String() != tt.ident {
+			t.Errorf(
+				"test %d: expected index.Left.String to be %s got %s",
+				i,
+				tt.ident,
+				index.Left.String(),
+			)
+		}
+
+		if index.Index.String() != tt.indexValue {
+			t.Errorf(
+				"test %d: expected index.Index.String to be %s got %s",
+				i,
+				tt.indexValue,
+				index.Index.String(),
+			)
+		}
+	}
+}
