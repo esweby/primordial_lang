@@ -67,6 +67,9 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		if node.Name == nil {
 			target, ok := node.Target.(*ast.MemberExpression)
 			if !ok {
+				if target, ok := node.Target.(*ast.IndexExpression); ok {
+					return evalIndexAssignment(target, node.Value, env)
+				}
 				return newError("invalid assignment target")
 			}
 			return evalMemberAssignment(target, node.Value, env)
@@ -655,6 +658,46 @@ func evalMapLiteral(m *ast.MapLiteral, env *object.Environment) object.Object {
 		MapType: m.Type.(*types.Map),
 		Pairs: pairs,
 	}
+}
+
+func evalIndexAssignment(
+	target *ast.IndexExpression, 
+	valueExpression ast.Expression, 
+	env *object.Environment,
+) object.Object {
+	lhs := Eval(target.Left, env)
+	if isError(lhs) {
+		return lhs
+	}
+
+	m, ok := lhs.(*object.Map)
+	if !ok {
+		return newError("cannot assign to non-map object %s", lhs.Type())
+	}
+
+	index := Eval(target.Index, env)
+	if isError(index) {
+		return index
+	}
+
+	coercedKey, err := coerceRuntimeArgument(index, m.MapType.Key)
+	if err != nil {
+		return newError("map key %s: %s", m.MapType.Key.Name(), err.Error())
+	}
+
+	hashKey, ok := coercedKey.(object.Hashable)
+	if !ok {
+		return newError("coercedKey is not object.Hashabkle")
+	}
+
+	value := Eval(valueExpression, env)
+	if isError(value) {
+		return value
+	}
+
+	m.Pairs[hashKey.HashKey()] = value
+
+	return m
 }
 
 func evalIntegerConversion(call *ast.CallExpression, target types.Type, env *object.Environment) object.Object {
