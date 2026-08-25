@@ -97,22 +97,49 @@ func (sa *SemanticAnalyzer) analyzeReturnStatement(stmt *ast.ReturnStatement) {
 
 func (sa *SemanticAnalyzer) analyzeAssignmentStatement(stmt *ast.AssignStatement) types.Type {
 	ident := stmt.Name
-	if ident == nil {
-		target, ok := stmt.Target.(*ast.MemberExpression)
+	if ident != nil {
+		// Look up the variable.
+		sym, ok := sa.current.Get(ident.Value)
 		if !ok {
-			sa.error("invalid assignment target")
+			sa.error(fmt.Sprintf("undefined variable: %s", ident.Value))
 			return types.InvalidType
 		}
+	
+		// Check mutability.
+		declSym, ok := sym.(*DeclareSymbol)
+		if !ok {
+			sa.error(fmt.Sprintf("cannot assign to non-variable: %s", ident.Value))
+			return types.InvalidType
+		}
+		if !declSym.Mutable() {
+			sa.error(fmt.Sprintf("cannot assign to immutable variable: %s", ident.Value))
+			return types.InvalidType
+		}
+	
+		// Analyze RHS.
+		rhsType := sa.analyzeExpression(stmt.Value)
+		if types.IsInvalid(rhsType) {
+			return types.InvalidType
+		}
+	
+		// Type check.
+		if err := sa.requireAssignable(declSym.Type(), rhsType, stmt.Value); err != nil {
+			sa.error("assignment type mismatch: " + err.Error())
+			return types.InvalidType
+		}
+	
+		return rhsType
+	}
+
+	switch target := stmt.Target.(type) {
+	case *ast.MemberExpression:
 		member, ok := sa.resolveMember(target)
 		if !ok {
 			return types.InvalidType
 		}
+	
 		if member.Kind != types.MemberProperty || len(member.ReturnTypes) != 1 {
 			sa.error(fmt.Sprintf("cannot assign to method: %s", member.Name))
-			return types.InvalidType
-		}
-		if member.StructOwner != sa.currentStruct {
-			sa.error(fmt.Sprintf("cannot assign to field outside its struct: %s", member.Name))
 			return types.InvalidType
 		}
 
@@ -125,37 +152,25 @@ func (sa *SemanticAnalyzer) analyzeAssignmentStatement(stmt *ast.AssignStatement
 			return types.InvalidType
 		}
 		return member.ReturnTypes[0]
-	}
+	case *ast.IndexExpression:
+		elementType := sa.analyzeIndexExpression(target)
+		if types.IsInvalid(elementType) {
+			return types.InvalidType
+		}
 
-	// Look up the variable.
-	sym, ok := sa.current.Get(ident.Value)
-	if !ok {
-		sa.error(fmt.Sprintf("undefined variable: %s", ident.Value))
+		rhsType := sa.analyzeExpression(stmt.Value)
+		if types.IsInvalid(rhsType) {
+			return types.InvalidType
+		}
+
+		if err := sa.requireAssignable(elementType, rhsType, stmt.Value); err != nil {
+			sa.error("assignment type mismatch: " + err.Error())
+			return types.InvalidType
+		}
+
+		return elementType
+	default:
+		sa.error("invalid target assignment")
 		return types.InvalidType
 	}
-
-	// Check mutability.
-	declSym, ok := sym.(*DeclareSymbol)
-	if !ok {
-		sa.error(fmt.Sprintf("cannot assign to non-variable: %s", ident.Value))
-		return types.InvalidType
-	}
-	if !declSym.Mutable() {
-		sa.error(fmt.Sprintf("cannot assign to immutable variable: %s", ident.Value))
-		return types.InvalidType
-	}
-
-	// Analyze RHS.
-	rhsType := sa.analyzeExpression(stmt.Value)
-	if types.IsInvalid(rhsType) {
-		return types.InvalidType
-	}
-
-	// Type check.
-	if err := sa.requireAssignable(declSym.Type(), rhsType, stmt.Value); err != nil {
-		sa.error("assignment type mismatch: " + err.Error())
-		return types.InvalidType
-	}
-
-	return rhsType
 }
