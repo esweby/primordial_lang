@@ -75,6 +75,26 @@ This project will be written on top of Go.
 
 As this is a hobby project, while I would love to put a simplefied ownership system into place I believe that relying on Go's garbage collection and when it comes to converting from an interpreter to compiler then there are several good enough GC's available to use already.
 
+### Reserved Keywords
+
+Currently the reserved keywords are
+
+- fn
+- true
+- false
+- if
+- else
+- return
+- pub
+- const
+- mut
+- map
+- struct
+- range
+- for
+- break
+- continue
+
 ### Variables
 
 The following code will define the declaration of a variable
@@ -135,19 +155,13 @@ The following types are available within Primordial. Some of these types, such a
 - function
 - error
 
-### Reserved Keywords
+#### Collection Types
 
-Currently the reserved keywords are
-
-- fn
-- true
-- false
-- if
-- else
-- return
-- pub
-- const
-- mut
+- tuple
+- array
+- slice
+- struct
+- map
 
 ### If
 
@@ -172,7 +186,7 @@ ident := false;
 try {
     if (cond) {
         value := apiCall;
-	ident = value;
+		ident = value;
     }
 } catch(err) {
    ...
@@ -234,7 +248,7 @@ pub (firstName, lastName) := try getUserName(1);
 Arrays and slices will be handled similarly to Go but with a few subtle differences. Both will be called with similar syntax where the only difference is the [] will take an identifier to say this is a
 
 ```
-array := <3>int64{1, 2, 3};
+array := [3]int64{1, 2, 3};
 slice := []int64{1, 2, 3};
 ```
 
@@ -293,7 +307,7 @@ Slice will remove the value at pos. If you pass a second argument to the functio
 
 #### Accessing entries
 
-An entry can be accessed using bracket notation, like other languages. You can also use bracket notation to return a deep copied slice, exclusive.
+An entry can be accessed using an index expression (bracket notation), like other languages. You can also use bracket notation to return a deep copied slice, exclusive.
 
 ```
 arr := []int32{0, 1, 2, 3, 4}
@@ -304,6 +318,7 @@ arr[0:2] // [0, 1]
 ##### Future implementations
 
 - .find
+- deep copy
 
 ### Structs
 
@@ -338,7 +353,7 @@ person2 := Person.new(23, "Edward");
 
 #### Properties
 
-Properties can be declared and accessed on a struct but follow the same rules as regular variables, they must use the pub and mut syntax.
+Properties can be declared and accessed on a struct but follow the same rules as regular variables, they must use the pub syntax.
 
 ```
 struct Person {
@@ -351,6 +366,11 @@ struct Person {
             age,
         }
     }
+
+    impl {
+    	fn setAge(newAge int32) { self.age = newAge; }
+        fn getAge(): int32 { return self.age; }
+    }
 }
 
 tobias := Person.new("Tobias", "29");
@@ -358,8 +378,9 @@ tobias.name; // accessible
 tobias.age // is private to the struct
 ```
 
-1. For a property to be mutable, it must be explicitly declared with the mut keyword
+1. All properties are internally mutable from an impl block using the self.propery = assignment
 2. For a property to be publicly accessible, it must be explicitly declared with the pub keyword
+   1. Declaring a property as publicly accessible will also make that property publicly settable
 3. If a property is considered private, it is internally availabkle to methods declared on Person and can be returned via that.
 
 #### Methods
@@ -403,7 +424,206 @@ email := tobias.getEmail();
 
 The self { } code block means that all functions declared within that block are passed self implicitly.
 
+### Maps
+
+Maps in Primordial will be more or less lifted directly from Go lang as an explicit data structure that is easy to understand and use.
+
+A full instantiation of a map:
+
+```
+map[int32]string{} // without starting values
+map[int32]string{ 1: "two", } // with starting values
+```
+
+All properties within a map will be mutable by default.
+
+```
+x := map[int32]string{}
+x[1] = "one";
+x[1] // "one"
+```
+
+Currently accepted key types for maps are
+
+- string
+- any integer
+- boolean
+
+If you try to access a property by an unset key you will recieve an undefined error.
+
+#### Iteration order
+
+I am currently undecied on how I would like to iterate over a map. We may store them in an order by default but that feels slightly unintentional. We may lean on top of Go's language for the moment and have them intentionally out of order.
+
+#### Map Ideas
+
+Perhaps to handle the idea of maps being out of order we may look at another keyword that can be used with maps such as ordered or orderedMap which could hold a property ascending, true by default (so 1,2,3 or a,b,c etc.) and would hold an order for an entry. The property could be accessible by a builtin member expression to handle the hidden property.
+
+### Loops
+
+I would like looping to be simple by taking advantage of tuples and commonly known keywords. As this language already likes to make use of expressions to give your code semantic meaning I feel it is appropriate to lean on what Rust and Zig offer while maintaining the simplicity of go. There is no need for all of the keywords (for, while, do while) and will overload the for keyword to lean on the different types of looping that a user might look to do.
+
+Another factor will be to consider how to handle labels. Part of me likes including a label with a \# or another label designation for use with break and continue but they can often make code look clunky and unclean. Another option would be to take the index key used, usually associated with one speciifc loop and overload that with a label. The problem here is that this moves away from the simplistic nature of the language and towards jargon, which is not ideal.
+
+For now we will explore some basic options and revisit looping as the language expands.
+
+Rules for looping
+
+- Must include a way to break out of the loop
+  - In a iterator loop that is handled for the user
+  - In a conditional loop the codition must meet some basic sense tests
+    - To be defined
+
+The following will be the overall layout of a for loop
+
+```
+[label:] for
+	[(cond)] // 1
+	[(init; cond; increment)] // 2
+    [tuple := range incrementer] // 3
+{
+
+}
+```
+
+- A label is optional
+- You may choose to have either a while style for loop, a traditional for loop, or a go style range loop
+- In Primordial for loops are expressions
+
+#### for
+
+The basic for loop will is a traditional infinite loop
+
+```
+for {
+    if (x == y) {
+    	break;
+    }
+}
+```
+
+#### for while
+
+The for loop with a simple condition replaces a while loop in other langues
+
+```
+x := 0;
+y := 10;
+
+for (x < y) {
+	x++
+}
+```
+
+#### for with condition
+
+These loops are common in every language.
+
+```
+for (x := 0; x < 10; x++) {}
+
+x := 0;
+for (x < 10) {
+	x++;
+}
+```
+
+#### for x := range incrementer
+
+The range keyword can be used with an array, slice, and map. The range keyword will return a tuple which the user can choose to be destructured or not.
+
+- Array & Slice - index, value
+- Map - key, value - this will be as they're added and not in a particular order
+
+```
+arr := [3]string{ "a", "b", "c", };
+
+for i, val := range arr {
+	...
+}
+
+m := map[string]string{
+	"a": "one",
+    "b": "two",
+    "c": "three",
+}
+
+for k, v := range m {
+	...
+}
+```
+
+### Labels
+
+Labels will be a day 1 feature so that advanced user control flow is available for breaking nested loops as needed.
+
+```
+breaker: for {
+	for (x := 0; x < 10; x++) {
+    	if (x == 5) {
+        	break breaker;
+        }
+    }
+}
+```
+
+### Continue
+
+The continue keyword will allow a iteration in a loop to skip to the next iteration.
+
+```
+for {
+	if (x == 5) {
+    	continue;
+    }
+}
+```
+
+### Break
+
+The break keyword will be used to break out of a loop, break out of a specific loop, and/or return a value. When a loop is assigned as a value to a variable then a break keyword must be used with a value assigned to it.
+
+```
+// syntax for break
+break;
+break label;
+break (value);
+break label (value);
+
+for {
+	if (userInput == "quit") {
+    	break;
+    }
+}
+
+x := for {
+	break (1 + 1);
+}
+
+breaker: for {
+	if (true) {
+    	break breaker;
+    }
+}
+
+b := breaker: for {
+	for(x := 0; x < 10; x++) {
+    	if (x == 5) {
+        	break breaker (5);
+        }
+    }
+}
+```
+
+- If you use a for loop as a right hand side of a return or declaration then you must include a break with an expression
+- If you use a return within this it will break the loop
+  - If you are in a function scope it will immediately exit the function scope with the provide values (as defined by the function)
+- As appropriate break accepts up to 2 values
+- If a break returns a value then it must return the same type in every
+
 ### Error Handling
+
+**Error Handling is marked as a second pass feature**
 
 Errors will be handled directly in Primordial using a Result<Val, Error> where errors will be handled as a value. This means, where an error is possible, a function should return the Result type.
 
@@ -461,26 +681,4 @@ If retry then fails on all attempts it will, in a similar vein, exit the enclosi
 
 ### Packages
 
-The language will use a package similar to Go. A package is declared by creating a folder within a Primordial project. For example, the following project has two packages; api and middleware.
-
-```
-/projectName
-/projectName/api
-/projectName/middleware
-```
-
-This may allow for naming conflicts when importing so to ease that tension you will be able to rename them on import.
-
-```
-import ecom.authentication.middleware as authMiddleware
-import ecom.server.middleware as serverMiddleware
-```
-
-Should you import a package in its entirey then the import will be a map of all publicly available variables and functions.
-
-The following rules will be enforced.
-
-1. A package may import any package in the subdirectory tree
-2. A package may not import any package that is considered an ancestor
-3. A package may import from a sibling package but it will not then be available to that sibling
-4. Circular dependencies are not allowed
+**Packages is marked as a second pass feature**
