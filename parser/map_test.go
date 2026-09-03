@@ -9,12 +9,12 @@ import (
 )
 
 func TestMapLiteral(t *testing.T) {
-	tests := []struct{
-		input string
-		expectedKeyType types.Type
+	tests := []struct {
+		input             string
+		expectedKeyType   types.Type
 		expectedValueType types.Type
-		expectedKey string
-		expectedValue string
+		expectedKey       string
+		expectedValue     string
 	}{
 		{`map[int32]string{ 10: "ten", }`, types.Int32Type, types.StringType, "10", "ten"},
 		{`map[string]int32{ "ten": 10, }`, types.StringType, types.Int32Type, "ten", "10"},
@@ -44,8 +44,8 @@ func TestMapLiteral(t *testing.T) {
 
 		if !types.IsTypesEqual(tt.expectedKeyType, mapTypes.Key) {
 			t.Errorf(
-				"test %d: expected key to be type: %s, got: %s", 
-				i, 
+				"test %d: expected key to be type: %s, got: %s",
+				i,
 				tt.expectedKeyType.Name(),
 				mapTypes.Key.Name(),
 			)
@@ -53,8 +53,8 @@ func TestMapLiteral(t *testing.T) {
 
 		if !types.IsTypesEqual(tt.expectedValueType, mapTypes.Value) {
 			t.Errorf(
-				"test %d: expected value to be type: %s, got: %s", 
-				i, 
+				"test %d: expected value to be type: %s, got: %s",
+				i,
 				tt.expectedValueType.Name(),
 				mapTypes.Value.Name(),
 			)
@@ -67,8 +67,8 @@ func TestMapLiteral(t *testing.T) {
 		pair := mapExp.Pairs[0]
 		if pair.Key.String() != tt.expectedKey {
 			t.Errorf(
-				"test %d: expected key to be: %s, got: %s", 
-				i, 
+				"test %d: expected key to be: %s, got: %s",
+				i,
 				tt.expectedKey,
 				pair.Key.String(),
 			)
@@ -76,8 +76,8 @@ func TestMapLiteral(t *testing.T) {
 
 		if pair.Value.String() != tt.expectedValue {
 			t.Errorf(
-				"test %d: expected value to be: %s, got: %s", 
-				i, 
+				"test %d: expected value to be: %s, got: %s",
+				i,
 				tt.expectedValue,
 				pair.Value.String(),
 			)
@@ -86,13 +86,13 @@ func TestMapLiteral(t *testing.T) {
 }
 
 func TestNestedMapLiteral(t *testing.T) {
-tests := []struct{
-		input string
+	tests := []struct {
+		input       string
 		outerLength int
-		outerKey string
+		outerKey    string
 		innerLength int
-		innerKey string
-		innerValue string
+		innerKey    string
+		innerValue  string
 	}{
 		{
 			`map[string]map[string]string{ 
@@ -100,7 +100,7 @@ tests := []struct{
 		"alan": "barrage",
 		"andrew": "carryon",
 	},
-}`, 
+}`,
 			1,
 			"a",
 			2,
@@ -147,18 +147,18 @@ tests := []struct{
 		innerValue := value.Pairs[0]
 		if innerValue.Key.String() != tt.innerKey {
 			t.Fatalf(
-				"test %d: expected inner key %s, got %s", 
-				i, 
-				tt.innerKey, 
+				"test %d: expected inner key %s, got %s",
+				i,
+				tt.innerKey,
 				innerValue.Key.String(),
 			)
 		}
 
 		if innerValue.Value.String() != tt.innerValue {
 			t.Fatalf(
-				"test %d: expected inner key %s, got %s", 
-				i, 
-				tt.innerValue, 
+				"test %d: expected inner key %s, got %s",
+				i,
+				tt.innerValue,
 				innerValue.Value.String(),
 			)
 		}
@@ -166,12 +166,12 @@ tests := []struct{
 }
 
 func TestComplicatedMapLiteral(t *testing.T) {
-tests := []struct{
-		input string
+	tests := []struct {
+		input       string
 		outerLength int
-		outerKey string
+		outerKey    string
 		innerLength int
-		innerKeys []string
+		innerKeys   []string
 		innerValues []string
 	}{
 		{
@@ -195,12 +195,12 @@ map[string]map[string]string{
 		a.getName(): a,
 		a2.getName(): a2,
 	},
-}`, 
+}`,
 			1,
 			"a",
 			2,
-			[]string{ "a.getName()", "a2.getName()"},
-			[]string{ "a", "a2"},
+			[]string{"a.getName()", "a2.getName()"},
+			[]string{"a", "a2"},
 		},
 	}
 
@@ -252,10 +252,10 @@ map[string]map[string]string{
 
 			if inner.Key.String() != tt.innerKeys[k] {
 				t.Fatalf(
-					"test %d, pair %d expected inner key %s, got %s", 
-					i, 
+					"test %d, pair %d expected inner key %s, got %s",
+					i,
 					k,
-					tt.innerKeys[k], 
+					tt.innerKeys[k],
 					inner.Key.String(),
 				)
 			}
@@ -272,27 +272,26 @@ map[string]map[string]string{
 
 			if iv.String() != tt.innerValues[k] {
 				t.Fatalf(
-					"test %d, pair %d expected inner value %s, got %s", 
-					i, 
+					"test %d, pair %d expected inner value %s, got %s",
+					i,
 					k,
-					tt.innerValues[k], 
+					tt.innerValues[k],
 					inner.Key.String(),
 				)
 			}
 		}
 
-		
 	}
 }
 
 func TestMapDeclaration(t *testing.T) {
-	tests := []struct{
-		input string
+	tests := []struct {
+		input              string
 		expectedIdentifier string
-		expectedKeyType types.Type
-		expectedValueType types.Type
-		expectedKey string
-		expectedValue string
+		expectedKeyType    types.Type
+		expectedValueType  types.Type
+		expectedKey        string
+		expectedValue      string
 	}{
 		{`a: map[int32]string := map[int32]string{ 10: "ten", }`, "a", types.Int32Type, types.StringType, "10", "ten"},
 	}
@@ -326,8 +325,8 @@ func TestMapDeclaration(t *testing.T) {
 
 		if !types.IsTypesEqual(tt.expectedKeyType, mapTypes.Key) {
 			t.Errorf(
-				"test %d: expected key to be type: %s, got: %s", 
-				i, 
+				"test %d: expected key to be type: %s, got: %s",
+				i,
 				tt.expectedKeyType.Name(),
 				mapTypes.Key.Name(),
 			)
@@ -335,8 +334,8 @@ func TestMapDeclaration(t *testing.T) {
 
 		if !types.IsTypesEqual(tt.expectedValueType, mapTypes.Value) {
 			t.Errorf(
-				"test %d: expected value to be type: %s, got: %s", 
-				i, 
+				"test %d: expected value to be type: %s, got: %s",
+				i,
 				tt.expectedValueType.Name(),
 				mapTypes.Value.Name(),
 			)
@@ -349,8 +348,8 @@ func TestMapDeclaration(t *testing.T) {
 		pair := mapExp.Pairs[0]
 		if pair.Key.String() != tt.expectedKey {
 			t.Errorf(
-				"test %d: expected key to be: %s, got: %s", 
-				i, 
+				"test %d: expected key to be: %s, got: %s",
+				i,
 				tt.expectedKey,
 				pair.Key.String(),
 			)
@@ -358,8 +357,8 @@ func TestMapDeclaration(t *testing.T) {
 
 		if pair.Value.String() != tt.expectedValue {
 			t.Errorf(
-				"test %d: expected value to be: %s, got: %s", 
-				i, 
+				"test %d: expected value to be: %s, got: %s",
+				i,
 				tt.expectedValue,
 				pair.Value.String(),
 			)
@@ -368,8 +367,8 @@ func TestMapDeclaration(t *testing.T) {
 }
 
 func TestAccessMapValueByString(t *testing.T) {
-	tests := []struct{
-		input string
+	tests := []struct {
+		input  string
 		access string
 	}{
 		{`map[string]string{ "one": "one", }["one"]`, "one"},
@@ -399,11 +398,11 @@ func TestAccessMapValueByString(t *testing.T) {
 }
 
 func TestAssignToMap(t *testing.T) {
-	tests := []struct{
-		input string
-		ident string
+	tests := []struct {
+		input      string
+		ident      string
 		indexValue string
-		value string
+		value      string
 	}{
 		{`x := map[string]string{}; x["one"] = "one"`, "x", "one", "one"},
 		{`x := map[string]string{ "one": "one", }; x["two"] = "two"`, "x", "two", "two"},

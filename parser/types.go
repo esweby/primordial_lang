@@ -56,7 +56,7 @@ func (p *Parser) parseMapType() (types.Type, bool) {
 		return nil, false
 	}
 	mt.Value = vt
-	
+
 	return mt, true
 }
 

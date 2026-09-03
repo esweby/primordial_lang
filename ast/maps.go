@@ -9,7 +9,7 @@ import (
 
 type MapLiteral struct {
 	Token token.Token
-	Type types.Type
+	Type  types.Type
 	Pairs []*MapLiteralPair
 }
 
@@ -36,7 +36,7 @@ func (ml *MapLiteral) String() string {
 
 type MapLiteralPair struct {
 	Token token.Token
-	Key Expression
+	Key   Expression
 	Value Expression
 }
 

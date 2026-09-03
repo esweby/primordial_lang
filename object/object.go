@@ -32,7 +32,7 @@ const (
 	SLICE_OBJ             = "SLICE"
 	STRUCT_DEFINITION_OBJ = "STRUCT_DEFINITION"
 	STRUCT_OBJ            = "STRUCT"
-	MAP_OBJ				  = "MAP"
+	MAP_OBJ               = "MAP"
 )
 
 type Object interface {
@@ -47,7 +47,7 @@ type Hashable interface {
 }
 
 type HashKey struct {
-	Type ObjectType
+	Type  ObjectType
 	Value string
 }
 
@@ -57,9 +57,9 @@ type Integer struct {
 }
 
 func (i *Integer) Type() ObjectType { return INTEGER_OBJ }
-func (i *Integer) Inspect() string { return i.Value.String() }
+func (i *Integer) Inspect() string  { return i.Value.String() }
 func (i *Integer) HashKey() HashKey {
-    return HashKey{Type: i.Type(), Value: i.Inspect()}
+	return HashKey{Type: i.Type(), Value: i.Inspect()}
 }
 
 type Boolean struct {
@@ -67,9 +67,9 @@ type Boolean struct {
 }
 
 func (b *Boolean) Type() ObjectType { return BOOLEAN_OBJ }
-func (b *Boolean) Inspect() string { return fmt.Sprintf("%t", b.Value) }
+func (b *Boolean) Inspect() string  { return fmt.Sprintf("%t", b.Value) }
 func (b *Boolean) HashKey() HashKey {
-    return HashKey{Type: b.Type(), Value: b.Inspect()}
+	return HashKey{Type: b.Type(), Value: b.Inspect()}
 }
 
 type String struct {
@@ -77,9 +77,9 @@ type String struct {
 }
 
 func (s *String) Type() ObjectType { return STRING_OBJ }
-func (s *String) Inspect() string { return s.Value }
+func (s *String) Inspect() string  { return s.Value }
 func (s *String) HashKey() HashKey {
-    return HashKey{Type: s.Type(), Value: s.Value}
+	return HashKey{Type: s.Type(), Value: s.Value}
 }
 
 type ReturnValue struct {
@@ -105,8 +105,7 @@ type Error struct {
 }
 
 func (e *Error) Type() ObjectType { return ERROR_OBJ }
-func (e *Error) Inspect() string { return "ERROR: " + e.Message }
-
+func (e *Error) Inspect() string  { return "ERROR: " + e.Message }
 
 type Function struct {
 	Name        string
@@ -200,7 +199,7 @@ type Builtin struct {
 }
 
 func (b *Builtin) Type() ObjectType { return BUILTIN_OBJ }
-func (b *Builtin) Inspect() string { return "builtin function" }
+func (b *Builtin) Inspect() string  { return "builtin function" }
 
 type StructDefinition struct {
 	Declaration *ast.StructStatement
@@ -233,27 +232,27 @@ func (s *Struct) Inspect() string {
 
 type Map struct {
 	MapType *types.Map
-	Pairs map[HashKey]Object
+	Pairs   map[HashKey]Object
 }
 
 func (m *Map) Type() ObjectType { return MAP_OBJ }
 func (m *Map) Inspect() string {
-    keys := make([]HashKey, 0, len(m.Pairs))
-    for key := range m.Pairs {
-        keys = append(keys, key)
-    }
+	keys := make([]HashKey, 0, len(m.Pairs))
+	for key := range m.Pairs {
+		keys = append(keys, key)
+	}
 
-    sort.Slice(keys, func(i, j int) bool {
-        if keys[i].Type != keys[j].Type {
-            return keys[i].Type < keys[j].Type
-        }
-        return keys[i].Value < keys[j].Value
-    })
+	sort.Slice(keys, func(i, j int) bool {
+		if keys[i].Type != keys[j].Type {
+			return keys[i].Type < keys[j].Type
+		}
+		return keys[i].Value < keys[j].Value
+	})
 
-    fields := make([]string, 0, len(keys))
-    for _, key := range keys {
-        fields = append(fields, key.Value+": "+m.Pairs[key].Inspect())
-    }
+	fields := make([]string, 0, len(keys))
+	for _, key := range keys {
+		fields = append(fields, key.Value+": "+m.Pairs[key].Inspect())
+	}
 
-    return "{" + strings.Join(fields, ", ") + "}"
+	return "{" + strings.Join(fields, ", ") + "}"
 }

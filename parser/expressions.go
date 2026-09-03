@@ -22,6 +22,10 @@ func (p *Parser) parseExpression(precedence int) ast.Expression {
 		return nil
 	}
 	for !p.peekTokenIs(token.SEMICOLON) && precedence < p.peekPrecedence() {
+		if p.peekTokenIs(token.LBRACE) && !p.allowStructLiteral {
+			break
+		}
+
 		infix := p.infixParseFns[p.peekToken.Type]
 		if infix == nil {
 			return leftExp

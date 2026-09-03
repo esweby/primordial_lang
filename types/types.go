@@ -31,7 +31,7 @@ type Type interface {
 	Kind() Kind
 }
 
-type Indexable interface{
+type Indexable interface {
 	Type
 	IndexType() Type
 	ElementType() Type
@@ -154,9 +154,9 @@ type Array struct {
 }
 
 func (al *Array) ElementType() Type { return al.elementType }
-func (al *Array) Length() int { return al.length }
-func (al *Array) Size() int   { return al.length * al.elementType.Size() }
-func (al *Array) Kind() Kind  { return KindArray }
+func (al *Array) Length() int       { return al.length }
+func (al *Array) Size() int         { return al.length * al.elementType.Size() }
+func (al *Array) Kind() Kind        { return KindArray }
 func (al *Array) Name() string {
 	return "[" + strconv.Itoa(al.length) + "]" + al.elementType.Name()
 }
@@ -170,9 +170,9 @@ type Slice struct {
 }
 
 func (sl *Slice) ElementType() Type { return sl.elementType }
-func (sl *Slice) Length() int { return sl.length }
-func (sl *Slice) Size() int   { return sl.length * sl.elementType.Size() }
-func (sl *Slice) Kind() Kind  { return KindSlice }
+func (sl *Slice) Length() int       { return sl.length }
+func (sl *Slice) Size() int         { return sl.length * sl.elementType.Size() }
+func (sl *Slice) Kind() Kind        { return KindSlice }
 func (sl *Slice) Name() string {
 	return "[]" + sl.elementType.Name()
 }
@@ -228,14 +228,14 @@ func (n *Named) LookupTypeMember(name string) (MemberDefinition, bool) {
 }
 
 type Map struct {
-	Key Type
+	Key   Type
 	Value Type
 }
 
-func (m *Map) Name() string { return "map[" + m.Key.Name() + "]" + m.Value.Name() }
-func (m *Map) Size() int    { return 16 }
-func (m *Map) Kind() Kind   { return KindMap }
-func (m *Map) IndexType() Type { return m.Key }
+func (m *Map) Name() string      { return "map[" + m.Key.Name() + "]" + m.Value.Name() }
+func (m *Map) Size() int         { return 16 }
+func (m *Map) Kind() Kind        { return KindMap }
+func (m *Map) IndexType() Type   { return m.Key }
 func (m *Map) ElementType() Type { return m.Value }
 
 type StructField struct {

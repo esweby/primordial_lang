@@ -65,7 +65,7 @@ func (p *Parser) parseMapLiterals() ast.Expression {
 
 		p.nextToken()
 	}
-	
+
 	m.Pairs = pairs
 	return m
 }
@@ -74,7 +74,7 @@ func (p *Parser) consumeMapPair() ast.Node {
 	mlp := &ast.MapLiteralPair{
 		Token: p.curToken,
 	}
-	
+
 	key := p.parseExpression(LOWEST)
 	if key == nil {
 		msg := fmt.Sprintf("expected key expression, found %s", describeToken(p.curToken))

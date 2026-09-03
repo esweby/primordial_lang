@@ -36,7 +36,7 @@ var precedences = map[token.TokenType]int{
 	token.PLUS:                   SUM,
 	token.MINUS:                  SUM,
 	token.FORWARD_SLASH:          PRODUCT,
-	token.ASTERISK:                PRODUCT,
+	token.ASTERISK:               PRODUCT,
 	token.LPAREN:                 CALL,
 	token.LBRACE:                 CALL,
 	token.DOT:                    DOT,
@@ -47,22 +47,27 @@ type Parser struct {
 	l           *lexer.Lexer
 	diagnostics []Diagnostic
 
-	curToken  token.Token
-	peekToken token.Token
+	curToken     token.Token
+	peekToken    token.Token
+	peekTwoToken token.Token
 
 	prefixParseFns map[token.TokenType]prefixParseFn
 	infixParseFns  map[token.TokenType]infixParseFn
+
+	allowStructLiteral bool
 }
 
 func New(l *lexer.Lexer) *Parser {
 	p := &Parser{
-		l:           l,
-		diagnostics: []Diagnostic{},
+		l:                  l,
+		diagnostics:        []Diagnostic{},
+		allowStructLiteral: true,
 	}
 
 	p.registerPrefixFns()
 	p.registerInfixFns()
 
+	p.nextToken()
 	p.nextToken()
 	p.nextToken()
 
@@ -84,9 +89,18 @@ func (p *Parser) ParseProgram() *ast.Program {
 	return program
 }
 
+func (p *Parser) disableStructLiteralParsing() {
+	p.allowStructLiteral = false
+}
+
+func (p *Parser) enableStructLiteralParsing() {
+	p.allowStructLiteral = true
+}
+
 func (p *Parser) nextToken() {
 	p.curToken = p.peekToken
-	p.peekToken = p.l.NextToken()
+	p.peekToken = p.peekTwoToken
+	p.peekTwoToken = p.l.NextToken()
 }
 
 func (p *Parser) curTokenIs(tokenType token.TokenType) bool {
@@ -95,6 +109,10 @@ func (p *Parser) curTokenIs(tokenType token.TokenType) bool {
 
 func (p *Parser) peekTokenIs(tokenType token.TokenType) bool {
 	return p.peekToken.Type == tokenType
+}
+
+func (p *Parser) peekTwoTokenIs(tokenType token.TokenType) bool {
+	return p.peekTwoToken.Type == tokenType
 }
 
 func (p *Parser) peekPrecedence() int {
@@ -145,6 +163,7 @@ func (p *Parser) registerPrefixFns() {
 	p.registerPrefix(token.STRING_LITERAL, p.parseStringLiteral)
 	p.registerPrefix(token.LBRACKET, p.parseLeftBracket)
 	p.registerPrefix(token.MAP, p.parseMapLiterals)
+	p.registerPrefix(token.FOR, p.parseForExpression)
 }
 
 func (p *Parser) registerInfixFns() {

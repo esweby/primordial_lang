@@ -104,7 +104,7 @@ func (sa *SemanticAnalyzer) analyzeAssignmentStatement(stmt *ast.AssignStatement
 			sa.error(fmt.Sprintf("undefined variable: %s", ident.Value))
 			return types.InvalidType
 		}
-	
+
 		// Check mutability.
 		declSym, ok := sym.(*DeclareSymbol)
 		if !ok {
@@ -115,19 +115,19 @@ func (sa *SemanticAnalyzer) analyzeAssignmentStatement(stmt *ast.AssignStatement
 			sa.error(fmt.Sprintf("cannot assign to immutable variable: %s", ident.Value))
 			return types.InvalidType
 		}
-	
+
 		// Analyze RHS.
 		rhsType := sa.analyzeExpression(stmt.Value)
 		if types.IsInvalid(rhsType) {
 			return types.InvalidType
 		}
-	
+
 		// Type check.
 		if err := sa.requireAssignable(declSym.Type(), rhsType, stmt.Value); err != nil {
 			sa.error("assignment type mismatch: " + err.Error())
 			return types.InvalidType
 		}
-	
+
 		return rhsType
 	}
 
@@ -137,7 +137,7 @@ func (sa *SemanticAnalyzer) analyzeAssignmentStatement(stmt *ast.AssignStatement
 		if !ok {
 			return types.InvalidType
 		}
-	
+
 		if member.Kind != types.MemberProperty || len(member.ReturnTypes) != 1 {
 			sa.error(fmt.Sprintf("cannot assign to method: %s", member.Name))
 			return types.InvalidType

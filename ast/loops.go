@@ -8,10 +8,10 @@ import (
 )
 
 type ForLoop struct {
-	Token token.Token
-	Label *Identifier
+	Token      token.Token
+	Label      *Identifier
 	Controller ForController
-	Body *BlockExpression
+	Body       *BlockExpression
 }
 
 func (fl *ForLoop) expressionNode() {}
@@ -51,7 +51,7 @@ func (i *Infinite) TokenLiteral() string { return i.Token.Literal }
 func (i *Infinite) String() string { return "" }
 
 type While struct {
-	Token token.Token
+	Token     token.Token
 	Condition Expression
 }
 
@@ -64,10 +64,10 @@ func (w *While) String() string {
 }
 
 type Constructed struct {
-	Token token.Token
+	Token       token.Token
 	Initializer Statement
-	Condition Expression
-	Iterator Expression
+	Condition   Expression
+	Iterator    Statement
 }
 
 func (c *Constructed) controller() {}
@@ -89,9 +89,9 @@ func (c *Constructed) String() string {
 }
 
 type Range struct {
-	Token token.Token
+	Token     token.Token
 	Variables []*Identifier // length 1 or 2
-    Iterable Expression
+	Iterable  Expression
 }
 
 func (r *Range) controller() {}
@@ -112,4 +112,49 @@ func (r *Range) String() string {
 	out.WriteString(" ")
 
 	return out.String()
+}
+
+type BreakStatement struct {
+	Token token.Token
+	Label *Identifier
+	Value Expression
+}
+
+func (bs *BreakStatement) statementNode() {}
+
+func (bs *BreakStatement) TokenLiteral() string {
+	return bs.Token.Literal
+}
+
+func (bs *BreakStatement) String() string {
+	var out bytes.Buffer
+
+	out.WriteString("break")
+
+	if bs.Label != nil {
+		out.WriteString(" ")
+		out.WriteString(bs.Label.String())
+	}
+
+	if bs.Value != nil {
+		out.WriteString(" (")
+		out.WriteString(bs.Value.String())
+		out.WriteString(")")
+	}
+
+	return out.String()
+}
+
+type ContinueStatement struct {
+	Token token.Token
+}
+
+func (cs *ContinueStatement) statementNode() {}
+
+func (cs *ContinueStatement) TokenLiteral() string {
+	return cs.Token.Literal
+}
+
+func (cs *ContinueStatement) String() string {
+	return "continue"
 }

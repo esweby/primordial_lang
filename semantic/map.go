@@ -27,7 +27,7 @@ func (sa *SemanticAnalyzer) analyzeMapLiteral(exp *ast.MapLiteral) types.Type {
 		if err != nil {
 			sa.error(
 				fmt.Sprintf(
-					"pair %d: key (%s) does not equal expected type %s", 
+					"pair %d: key (%s) does not equal expected type %s",
 					i,
 					key.Name(),
 					expType.Key.Name(),
@@ -46,7 +46,7 @@ func (sa *SemanticAnalyzer) analyzeMapLiteral(exp *ast.MapLiteral) types.Type {
 		if err != nil {
 			sa.error(
 				fmt.Sprintf(
-					"pair %d: value (%s) does not equal expected type %s", 
+					"pair %d: value (%s) does not equal expected type %s",
 					i,
 					value.Name(),
 					expType.Value.Name(),

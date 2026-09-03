@@ -613,56 +613,56 @@ func evalStructLiteral(literal *ast.StructLiteral, env *object.Environment) obje
 }
 
 func evalMapLiteral(m *ast.MapLiteral, env *object.Environment) object.Object {
-    mapType, ok := m.Type.(*types.Map)
-    if !ok {
-        return newError("invalid map type: %T", m.Type)
-    }
+	mapType, ok := m.Type.(*types.Map)
+	if !ok {
+		return newError("invalid map type: %T", m.Type)
+	}
 
-    pairs := make(map[object.HashKey]object.Object, len(m.Pairs))
+	pairs := make(map[object.HashKey]object.Object, len(m.Pairs))
 
-    for _, pair := range m.Pairs {
-        // Evaluate key expression to get an object
-        keyObj := Eval(pair.Key, env)
-        if isError(keyObj) {
-            return keyObj
-        }
+	for _, pair := range m.Pairs {
+		// Evaluate key expression to get an object
+		keyObj := Eval(pair.Key, env)
+		if isError(keyObj) {
+			return keyObj
+		}
 
-        // Coerce key to the declared key type (optional but recommended)
-        coercedKey, err := coerceRuntimeArgument(keyObj, mapType.Key)
-        if err != nil {
-            return newError("map key %s: %s", pair.Key.String(), err.Error())
-        }
+		// Coerce key to the declared key type (optional but recommended)
+		coercedKey, err := coerceRuntimeArgument(keyObj, mapType.Key)
+		if err != nil {
+			return newError("map key %s: %s", pair.Key.String(), err.Error())
+		}
 
-        // Compute hash key from the coerced key object
-        hashKey, ok := coercedKey.(object.Hashable)
-        if !ok {
-            return newError("coercedKey is not object.Hashabkle")
-        }
+		// Compute hash key from the coerced key object
+		hashKey, ok := coercedKey.(object.Hashable)
+		if !ok {
+			return newError("coercedKey is not object.Hashabkle")
+		}
 
-        // Evaluate value expression
-        valueObj := Eval(pair.Value, env)
-        if isError(valueObj) {
-            return valueObj
-        }
+		// Evaluate value expression
+		valueObj := Eval(pair.Value, env)
+		if isError(valueObj) {
+			return valueObj
+		}
 
-        // Coerce value to the declared value type
-        coercedValue, err := coerceRuntimeArgument(valueObj, mapType.Value)
-        if err != nil {
-            return newError("map value for key %s: %s", pair.Key.String(), err.Error())
-        }
+		// Coerce value to the declared value type
+		coercedValue, err := coerceRuntimeArgument(valueObj, mapType.Value)
+		if err != nil {
+			return newError("map value for key %s: %s", pair.Key.String(), err.Error())
+		}
 
-        pairs[hashKey.HashKey()] = coercedValue
-    }
+		pairs[hashKey.HashKey()] = coercedValue
+	}
 
-    return &object.Map{
+	return &object.Map{
 		MapType: m.Type.(*types.Map),
-		Pairs: pairs,
+		Pairs:   pairs,
 	}
 }
 
 func evalIndexAssignment(
-	target *ast.IndexExpression, 
-	valueExpression ast.Expression, 
+	target *ast.IndexExpression,
+	valueExpression ast.Expression,
 	env *object.Environment,
 ) object.Object {
 	lhs := Eval(target.Left, env)

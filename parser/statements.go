@@ -19,6 +19,10 @@ func (p *Parser) parseStatement() ast.Statement {
 		}
 		return stmt
 	case token.IDENT:
+		if p.peekTokenIs(token.COLON) && p.peekTwoTokenIs(token.FOR) {
+			return p.parseLabelledForStatement()
+		}
+
 		if p.peekTokenIs(token.COLON) || p.peekTokenIs(token.DECLARE) {
 			stmt := p.parseDeclareStatement()
 			if stmt == nil {
@@ -26,7 +30,6 @@ func (p *Parser) parseStatement() ast.Statement {
 			}
 			return stmt
 		}
-
 		return p.parseExpressionStatement()
 	case token.RETURN:
 		stmt := p.parseReturnStatement()
@@ -38,6 +41,10 @@ func (p *Parser) parseStatement() ast.Statement {
 		return p.parseFunctionStatement()
 	case token.STRUCT:
 		return p.parseStructStatement()
+	case token.BREAK:
+		return p.parseBreakStatement()
+	case token.CONTINUE:
+		return p.parseContinueStatement()
 	default:
 		return p.parseExpressionStatement()
 	}

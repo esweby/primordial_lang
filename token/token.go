@@ -62,6 +62,10 @@ const (
 	PUB
 	MUT
 	CONST
+	FOR
+	BREAK
+	CONTINUE
+	RANGE
 )
 
 var tokenNames = [...]string{
@@ -78,7 +82,7 @@ var tokenNames = [...]string{
 	PLUS:                   "PLUS",
 	MINUS:                  "MINUS",
 	BANG:                   "BANG",
-	ASTERISK:                "ASTERISK",
+	ASTERISK:               "ASTERISK",
 	FORWARD_SLASH:          "FORWARD_SLASH",
 	EQUALS:                 "EQUALS",
 	NOT_EQUALS:             "NOT_EQUALS",
@@ -97,33 +101,41 @@ var tokenNames = [...]string{
 	LBRACKET:  "LBRACKET",
 	RBRACKET:  "RBRACKET",
 	// Keywords
-	FN:     "FN",
-	STRUCT: "STRUCT",
-	MAP:    "MAP",
-	IMPL:   "IMPL",
-	TRUE:   "TRUE",
-	FALSE:  "FALSE",
-	IF:     "IF",
-	ELSE:   "ELSE",
-	RETURN: "RETURN",
-	PUB:    "PUB",
-	MUT:    "MUT",
-	CONST:  "CONST",
+	FN:       "FN",
+	STRUCT:   "STRUCT",
+	MAP:      "MAP",
+	IMPL:     "IMPL",
+	TRUE:     "TRUE",
+	FALSE:    "FALSE",
+	IF:       "IF",
+	ELSE:     "ELSE",
+	RETURN:   "RETURN",
+	PUB:      "PUB",
+	MUT:      "MUT",
+	CONST:    "CONST",
+	FOR:      "FOR",
+	BREAK:    "BREAK",
+	CONTINUE: "CONTINUE",
+	RANGE:    "RANGE",
 }
 
 var keywords = map[string]TokenType{
-	"fn":     FN,
-	"map":	  MAP,
-	"struct": STRUCT,
-	"impl":   IMPL,
-	"true":   TRUE,
-	"false":  FALSE,
-	"if":     IF,
-	"else":   ELSE,
-	"return": RETURN,
-	"pub":    PUB,
-	"mut":    MUT,
-	"const":  CONST,
+	"fn":       FN,
+	"map":      MAP,
+	"struct":   STRUCT,
+	"impl":     IMPL,
+	"true":     TRUE,
+	"false":    FALSE,
+	"if":       IF,
+	"else":     ELSE,
+	"return":   RETURN,
+	"pub":      PUB,
+	"mut":      MUT,
+	"const":    CONST,
+	"for":      FOR,
+	"break":    BREAK,
+	"continue": CONTINUE,
+	"range":    RANGE,
 }
 
 type Token struct {

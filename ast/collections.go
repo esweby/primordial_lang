@@ -108,9 +108,9 @@ func (tas *TupleAssignStatement) String() string {
 }
 
 type IndexExpression struct {
-	Token token.Token
-	Left  Expression
-	Index Expression
+	Token     token.Token
+	Left      Expression
+	Index     Expression
 	IndexType *types.Type
 }
 
