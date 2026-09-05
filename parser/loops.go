@@ -151,6 +151,7 @@ func (p *Parser) parseForController() ast.ForController {
 				Token: initToken,
 				Name:  initName,
 				Value: initValue,
+				Mutable: true,
 				// Type and mutability can be omitted for now
 			}
 

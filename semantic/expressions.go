@@ -76,6 +76,8 @@ func (sa *SemanticAnalyzer) analyzeExpression(exp ast.Expression) types.Type {
 	case *ast.IfExpression:
 		// When used as an expression, we expect a value.
 		return sa.analyzeIfExpression(e, true)
+	case *ast.ForLoop:
+		return sa.analyzeForExpression(e, true)
 	case *ast.FunctionLiteral:
 		// A function literal as a standalone expression (e.g., passed as argument).
 		// We analyze it but do not register it; we return its generic type.

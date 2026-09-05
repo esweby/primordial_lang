@@ -22,6 +22,8 @@ type SemanticAnalyzer struct {
 	returnTypes        []types.Type
 	currentStruct      *types.Struct
 	structDeclarations map[*ast.StructStatement]*types.Struct
+	loopDepth		   int
+	loopLabels		   []string
 }
 
 // NewSemanticAnalyzer creates a new analyzer.
@@ -31,6 +33,8 @@ func NewSemanticAnalyzer(program *ast.Program, symbols *SymbolTable) *SemanticAn
 		errors:             []error{},
 		current:            symbols.Clone(),
 		structDeclarations: make(map[*ast.StructStatement]*types.Struct),
+		loopDepth: 0,
+		loopLabels: []string{},
 	}
 }
 
@@ -71,6 +75,11 @@ func (sa *SemanticAnalyzer) analyzeStatement(stmt ast.Statement) types.Type {
 		if ifExpr, ok := s.Expression.(*ast.IfExpression); ok {
 			return sa.analyzeIfExpression(ifExpr, false)
 		}
+
+		if forExpr, ok := s.Expression.(*ast.ForLoop); ok {
+			return sa.analyzeForExpression(forExpr, false)
+		}
+
 		return sa.analyzeExpression(s.Expression)
 
 	case *ast.DeclareStatement:
@@ -95,6 +104,12 @@ func (sa *SemanticAnalyzer) analyzeStatement(stmt ast.Statement) types.Type {
 
 	case *ast.StructStatement:
 		return sa.analyzeStructStatement(s)
+
+	case *ast.BreakStatement:
+		return sa.analyzeBreakStatement(s)
+
+	case *ast.ContinueStatement:
+		return sa.analyzeContinueStatement(s)
 
 	default:
 		sa.error(fmt.Sprintf("analyzeStatement received unexpected statement: %T", stmt))

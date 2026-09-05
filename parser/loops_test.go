@@ -314,6 +314,81 @@ func TestBreakWithLabelsAndExpressions(t *testing.T) {
 	}
 }
 
+func TestBreakWithLabelsAndExpressionsAsRhs(t *testing.T) {
+	tests := []struct {
+		input              string
+		expectedLabel      string
+		expectedBreakLabel string
+		testFunc           func(
+			t *testing.T,
+			forLoop *ast.ForLoop,
+			testNum int,
+		) (ast.ForController, bool)
+	}{
+		{`x := lbl: for { break lbl ("yay"); }`, "lbl", "lbl", testIsInfiniteLoop},
+		{`y := lbl: for (x < y) { break lbl (1 + 1); }`, "lbl", "lbl", testIsWhileLoop},
+		{`z := lbl: for (x := 1; x < y; x = x + 1) { break lbl (1 + 2); }`, "lbl", "lbl", testIsConstructedLoop},
+		{`a := lbl: for x := range brian { break lbl (4); }`, "lbl", "lbl", testIsRangeLoop},
+	}
+
+	for i, tt := range tests {
+		l := lexer.New(tt.input)
+		p := New(l)
+		program := p.ParseProgram()
+		requireNoParserErrors(t, p)
+		requireStatementCount(t, program.Statements, 1)
+
+		stmt := program.Statements[0].(*ast.DeclareStatement)
+		value := stmt.Value
+
+		forExp, ok := value.(*ast.ForLoop)
+		if !ok {
+			t.Fatalf("test %d: stmt.Expression not *ast.ForLoop, got=%T", i, stmt.Value)
+		}
+		
+		_, ok = tt.testFunc(t, forExp, i)
+		if !ok {
+			return
+		}
+
+		if forExp.Label.Value != tt.expectedLabel {
+			t.Errorf(
+				"test %d: expected for label to be %s got %s",
+				i,
+				tt.expectedLabel,
+				forExp.Label.Value,
+			)
+		}
+
+		forBody := forExp.Body.Statements[0]
+
+		brkStmt, ok := forBody.(*ast.BreakStatement)
+		if !ok {
+			t.Errorf(
+				"test %d: expected body to be ast.BreakStatement, got %T",
+				i,
+				forExp.Body.Statements[0],
+			)
+		}
+
+		if brkStmt.Label.Value != tt.expectedLabel {
+			t.Errorf(
+				"test %d: expected brkStmt.label to be %s got %s",
+				i,
+				tt.expectedLabel,
+				brkStmt.Label.Value,
+			)
+		}
+
+		if brkStmt.Value == nil {
+			t.Errorf(
+				"test %d: expected brkStmt.Value to not be nil",
+				i,
+			)
+		}
+	}
+}
+
 func TestContinueStatement(t *testing.T) {
 	tests := []struct {
 		input    string
