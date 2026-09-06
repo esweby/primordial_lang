@@ -148,9 +148,9 @@ func (p *Parser) parseForController() ast.ForController {
 
 			// Build DeclareStatement for initializer
 			initStmt := &ast.DeclareStatement{
-				Token: initToken,
-				Name:  initName,
-				Value: initValue,
+				Token:   initToken,
+				Name:    initName,
+				Value:   initValue,
 				Mutable: true,
 				// Type and mutability can be omitted for now
 			}

@@ -569,6 +569,223 @@ func TestSliceOperatorExpressions(t *testing.T) {
 	}
 }
 
+func TestForLoops(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected interface{} // int64, bool, string, or nil for void
+	}{
+		{
+			name: "infinite loop with break",
+			input: `
+				x := 0;
+				for {
+					x = x + 1;
+					if (x == 5) { break; }
+				}
+				x;
+			`,
+			expected: int64(5),
+		},
+		{
+			name: "while loop",
+			input: `
+				x := 0;
+				for (x < 5) {
+					x = x + 1;
+				}
+				x;
+			`,
+			expected: int64(5),
+		},
+		{
+			name: "constructed loop",
+			input: `
+				sum := 0;
+				for (i := 1; i <= 5; i = i + 1) {
+					sum = sum + i;
+				}
+				sum;
+			`,
+			expected: int64(15),
+		},
+		{
+			name: "range over array",
+			input: `
+				arr := [3]int64{10, 20, 30};
+				sum := 0;
+				for i, val := range arr {
+					sum = sum + val;
+				}
+				sum;
+			`,
+			expected: int64(60),
+		},
+		{
+			name: "range over slice",
+			input: `
+				slice := []int64{1, 2, 3, 4};
+				sum := 0;
+				for _, val := range slice {
+					sum = sum + val;
+				}
+				sum;
+			`,
+			expected: int64(10),
+		},
+		// {
+		// 	name: "range over map",
+		// 	input: `
+		// 		m := map[string]int64{"a": 1, "b": 2, "c": 3};
+		// 		sum := 0;
+		// 		for _, val := range m {
+		// 			sum = sum + val;
+		// 		}
+		// 		sum;
+		// 	`,
+		// 	expected: int64(6),
+		// },
+		{
+			name: "break with label",
+			input: `
+				x := 0;
+				outer: for {
+					x = x + 1;
+					for {
+						break outer;
+					}
+				}
+				x;
+			`,
+			expected: int64(1),
+		},
+		{
+			name: "continue in constructed loop",
+			input: `
+				sum := 0;
+				for (i := 1; i <= 5; i = i + 1) {
+					if (i == 3) { continue; }
+					sum = sum + i;
+				}
+				sum;
+			`,
+			expected: int64(12), // 1+2+4+5
+		},
+		{
+			name: "loop as expression (break with value)",
+			input: `
+				x := for {
+					break (42);
+				};
+				x;
+			`,
+			expected: int64(42),
+		},
+		{
+			name: "loop as expression with break label and value",
+			input: `
+				x := lbl: for {
+					break lbl (99);
+				};
+				x;
+			`,
+			expected: int64(99),
+		},
+		{
+			name: "nested loops - break inner only",
+			input: `
+				outer := 0;
+				inner := 0;
+				for {
+					outer = outer + 1;
+					if (outer > 3) { break; }
+					for {
+						inner = inner + 1;
+						if (inner > 2) { break; }
+					}
+				}
+				outer + inner;
+			`,
+			expected: int64(9), // outer=4, inner=5 => 9
+		},
+		{
+			name: "labelled break to outer",
+			input: `
+				outer := 0;
+				inner := 0;
+				outerLabel: for {
+					outer = outer + 1;
+					for {
+						inner = inner + 1;
+						if (inner > 2) { break outerLabel; }
+					}
+				}
+				outer + inner;
+			`,
+			expected: int64(4), // outer=1, inner=3? Actually: inner becomes 1,2 then break outer, so outer=1, inner=3 => 4
+		},
+		{
+			name: "loop returns void (no break value) - assignment allowed?",
+			input: `
+				x := for { break; };
+				x;
+			`,
+			expected: nil, // void object
+		},
+		{
+			name: "break outside loop should error",
+			input: `
+				break;
+			`,
+			expected: "break outside of loop", // error message string
+		},
+		{
+			name: "continue outside loop should error",
+			input: `
+				continue;
+			`,
+			expected: "continue outside of loop",
+		},
+		{
+			name: "break with label not matching any loop should error",
+			input: `
+				for { break unknownLabel; }
+			`,
+			expected: "break label 'unknownLabel' does not match any enclosing loop",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			evaluated := testEval(tt.input)
+
+			switch exp := tt.expected.(type) {
+			case int64:
+				testIntegerObject(t, evaluated, exp)
+			case nil:
+				// expected void – check that it's not an error and type is void?
+				if evaluated == nil || evaluated == object.VOID {
+					// ok
+				} else {
+					t.Errorf("expected void, got %T (%+v)", evaluated, evaluated)
+				}
+			case string:
+				// expect error with message containing exp
+				errObj, ok := evaluated.(*object.Error)
+				if !ok {
+					t.Errorf("expected error, got %T (%+v)", evaluated, evaluated)
+					return
+				}
+				if errObj.Message != exp {
+					t.Errorf("expected error message %q, got %q", exp, errObj.Message)
+				}
+			default:
+				t.Fatalf("unsupported expected type: %T", exp)
+			}
+		})
+	}
+}
+
 func testEval(input string) object.Object {
 	l := lexer.New(input)
 	p := parser.New(l)

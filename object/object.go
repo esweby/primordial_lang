@@ -33,6 +33,9 @@ const (
 	STRUCT_DEFINITION_OBJ = "STRUCT_DEFINITION"
 	STRUCT_OBJ            = "STRUCT"
 	MAP_OBJ               = "MAP"
+	CONTINUE_OBJ          = "CONTINUE"
+	BREAK_OBJ             = "BREAK"
+	VOID_OBJ              = "VOID"
 )
 
 type Object interface {
@@ -231,8 +234,10 @@ func (s *Struct) Inspect() string {
 }
 
 type Map struct {
-	MapType *types.Map
-	Pairs   map[HashKey]Object
+	MapType      *types.Map
+	Pairs        map[HashKey]Object
+	Keys         []HashKey
+	OriginalKeys map[HashKey]Object
 }
 
 func (m *Map) Type() ObjectType { return MAP_OBJ }
@@ -256,3 +261,40 @@ func (m *Map) Inspect() string {
 
 	return "{" + strings.Join(fields, ", ") + "}"
 }
+
+type Break struct {
+	Label string
+	Value Object
+}
+
+func (b *Break) Type() ObjectType { return BREAK_OBJ }
+
+func (b *Break) Inspect() string {
+	var out bytes.Buffer
+
+	out.WriteString("break")
+	if b.Label != "" {
+		out.WriteString(" ")
+		out.WriteString(b.Label)
+	}
+
+	if b.Value != nil {
+		out.WriteString(" ")
+		out.WriteString(b.Value.Inspect())
+	}
+
+	return out.String()
+}
+
+type Continue struct{}
+
+func (c *Continue) Type() ObjectType { return CONTINUE_OBJ }
+
+func (c *Continue) Inspect() string { return "continue" }
+
+type Void struct{}
+
+func (v *Void) Type() ObjectType { return VOID_OBJ }
+func (v *Void) Inspect() string  { return "void" }
+
+var VOID = &Void{}

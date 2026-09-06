@@ -210,8 +210,8 @@ func TestBreakWithLabels(t *testing.T) {
 
 func TestBreakWithExpressions(t *testing.T) {
 	tests := []struct {
-		input              string
-		testFunc           func(
+		input    string
+		testFunc func(
 			t *testing.T,
 			forLoop *ast.ForLoop,
 			testNum int,
@@ -345,7 +345,7 @@ func TestBreakWithLabelsAndExpressionsAsRhs(t *testing.T) {
 		if !ok {
 			t.Fatalf("test %d: stmt.Expression not *ast.ForLoop, got=%T", i, stmt.Value)
 		}
-		
+
 		_, ok = tt.testFunc(t, forExp, i)
 		if !ok {
 			return

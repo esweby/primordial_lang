@@ -22,8 +22,8 @@ type SemanticAnalyzer struct {
 	returnTypes        []types.Type
 	currentStruct      *types.Struct
 	structDeclarations map[*ast.StructStatement]*types.Struct
-	loopDepth		   int
-	loopLabels		   []string
+	loopDepth          int
+	loopLabels         []string
 }
 
 // NewSemanticAnalyzer creates a new analyzer.
@@ -33,8 +33,8 @@ func NewSemanticAnalyzer(program *ast.Program, symbols *SymbolTable) *SemanticAn
 		errors:             []error{},
 		current:            symbols.Clone(),
 		structDeclarations: make(map[*ast.StructStatement]*types.Struct),
-		loopDepth: 0,
-		loopLabels: []string{},
+		loopDepth:          0,
+		loopLabels:         []string{},
 	}
 }
 
