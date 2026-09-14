@@ -24,18 +24,146 @@ fn add(x int32, y int32): int32 {
 answer := add(20, 22);
 ```
 
-## Where it is now
+## Syntax at a glance
 
-Primordial is being written in Go, using the Monkey interpreter as a loose starting point. The project currently has a lexer, Pratt parser, semantic analyser, tree-walking evaluator, and a small REPL. It is still early and under active construction: rough edges, unfinished features, and changing syntax are all part of the deal.
+The following syntactical features have been implemented
 
-The eventual destination is an LLVM-backed compiler. Along the way I would like to use Primordial to make a tiny game engine—think early *Final Fantasy* or *Final Fantasy Tactics*—a web server, and whatever other small projects seem entertaining enough to expose the next bad language decision.
+### Variable Declaration
 
-## Having a look
+Variables are immutable by default, always typed either by annotation or inference.
 
-Run the REPL:
+```
+x := 123;
+y: int32 := 123;
+
+mut z: string := "Hello world";
+```
+
+### Functions
+
+Functions can be declarations or assigned as values.
+
+```
+fn add(x int32, y int32): int32 {
+	return x + y;
+}
+
+add := fn(x int32, y int32): int32 { return x + y; }
+```
+
+### If expressions
+
+Primordial supports regular if statements but also if branching as expressions
+
+```
+age := 19;
+mut canDrink := false;
+
+if (age >= 18) {
+	canDrink = true;
+}
+
+// This can become the following
+
+canDrink := if (age >= 18) {
+	true
+} else {
+	false
+}
+```
+
+### Collections
+
+It also supports arrays, slices, and maps using Go style syntax. In an array with a defined length, if you would provide less values than the size of the array, the remaining places will be initialized to the 0 value.
+
+```
+// Array
+ages := [3]int32{ 24, 26, 18 };
+
+// Slice
+names := []string{ "Graham", "Francis", "Ethel" };
+
+// Maps
+ages := map[string]int32{
+	"graham": 24,
+    "francis": 26,
+    "ethel": 18,
+};
+```
+
+### For loops
+
+There are four different styles of for loops to choose from, which support break and continue keywords.
+
+```
+// infinite
+for {
+	...
+}
+
+// for while
+mut age := 17;
+for (age < 20) {
+	age = age + 1;
+}
+
+// traditional for (the initializer does not need to be marked as mut)
+for (x := 0; x < 10; x = x + 1) {
+	...
+}
+
+// range over collection
+ages := []int32{ 10, 20, 30, 40 };
+for i, age := range ages {
+	age;
+}
+```
+
+### Structs
+
+And finally struct implementations.
+
+```
+struct Person {
+	age: int32; // internally mutable only
+    pub name: string; // externally mutable
+
+    // static methods
+    fn new(age int32, name: string): Person {
+    	// supports short form
+        return Person{
+        	age,
+            name,
+        }
+    }
+
+    // impl block is for initialized methods
+    // and makes the self keyword available
+    impl {
+    	fn setAge(age int32) {
+        	self.age = age;
+        }
+
+        fn getAge(): int32 { return self.age; }
+    }
+}
+
+tobias := Person.new(400, "Tobias");
+
+tobias.setAge(40);
+tobias.getAge(); // 40
+
+tobias.name; // "Tobias"
+tobias.name = "Tobi";
+```
+
+## Give it a try
+
+Use the following commands to give the language a try
 
 ```sh
-go run .
+go build -o pri main.go
+./pri run examples/main.pri
 ```
 
 Run the test suite:
@@ -44,8 +172,8 @@ Run the test suite:
 go test ./...
 ```
 
-The original [design notes](specification/Design%20Notes.md) contain the longer brain-dump behind the language. There is also a more structured [language specification](specification/Language%20Specification.md). Both are working documents, not sacred texts.
+There is a more structured [language specification](specification/Language%20Specification.md). Both are working documents, not sacred texts.
 
-Implementation documentation, including the current integer typing and runtime contract, lives in [`documentation`](documentation/README.md).
+Implementation documentation and retrospectives lives in [`documentation`](documentation/README.md).
 
 This is an ambitious solo hobby project. Good enough is good enough—until it becomes interesting to make it better.
