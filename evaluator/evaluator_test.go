@@ -794,7 +794,10 @@ func testEval(input string) object.Object {
 	sa := semantic.NewSemanticAnalyzer(program, symbols)
 	sa.Analyze()
 	env := object.NewEnvironment()
-	return Eval(program, env)
+
+	evaluator := New(program, env)
+
+	return evaluator.Evaluate()
 }
 
 func testIntegerObject(t *testing.T, obj object.Object, expected int64) bool {
