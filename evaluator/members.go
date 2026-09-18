@@ -8,11 +8,11 @@ import (
 	"github.com/esweby/primordial_lang/types"
 )
 
-func evalMemberProperty(
+func (e *Evaluator) evalMemberProperty(
 	exp *ast.MemberExpression,
 	env *object.Environment,
 ) object.Object {
-	receiver := Eval(exp.Receiver, env)
+	receiver := e.eval(exp.Receiver, env)
 	if isError(receiver) {
 		return receiver
 	}
@@ -32,8 +32,8 @@ func evalMemberProperty(
 	case *object.Struct:
 		value, ok := receiver.Fields[exp.Name.Value]
 		if ok {
-			field := findStructField(receiver.Definition, exp.Name.Value)
-			if field != nil && !field.Public && !hasStructAccess(receiver, env) {
+			field := e.findStructField(receiver.Definition, exp.Name.Value)
+			if field != nil && !field.Public && !e.hasStructAccess(receiver, env) {
 				return newError("field %s.%s is private", receiver.Name, exp.Name.Value)
 			}
 			return value
@@ -47,57 +47,57 @@ func evalMemberProperty(
 	)
 }
 
-func evalMemberCall(
+func (e *Evaluator) evalMemberCall(
 	exp *ast.MemberExpression,
 	arguments []ast.Expression,
 	env *object.Environment,
 ) object.Object {
-	receiver := Eval(exp.Receiver, env)
+	receiver := e.eval(exp.Receiver, env)
 	if isError(receiver) {
 		return receiver
 	}
 
-	args := evalExpressions(arguments, env)
+	args := e.evalExpressions(arguments, env)
 	if len(args) == 1 && isError(args[0]) {
 		return args[0]
 	}
 
 	switch receiver := receiver.(type) {
 	case *object.Array:
-		return evalArrayMethod(
+		return e.evalArrayMethod(
 			receiver,
 			exp.Name.Value,
 			args,
 		)
 
 	case *object.Slice:
-		return evalSliceMethod(
+		return e.evalSliceMethod(
 			receiver,
 			exp.Name.Value,
 			args,
 		)
 
 	case *object.StructDefinition:
-		function := findStructFunction(receiver.Declaration.TypeFunctions, exp.Name.Value)
+		function := e.findStructFunction(receiver.Declaration.TypeFunctions, exp.Name.Value)
 		if function == nil {
 			return newError("struct %s has no type function %s", receiver.Declaration.Name.Value, exp.Name.Value)
 		}
 		functionEnv := object.NewEnclosedEnvironment(receiver.Env)
 		functionEnv.SetStructContext(receiver)
-		return applyFunction(newStructFunction(function, functionEnv), args)
+		return e.applyFunction(newStructFunction(function, functionEnv), args)
 
 	case *object.Struct:
 		if receiver.Definition == nil || receiver.Definition.Declaration.Impl == nil {
 			return newError("struct %s has no method %s", receiver.Name, exp.Name.Value)
 		}
-		method := findStructFunction(receiver.Definition.Declaration.Impl.Methods, exp.Name.Value)
+		method := e.findStructFunction(receiver.Definition.Declaration.Impl.Methods, exp.Name.Value)
 		if method == nil {
 			return newError("struct %s has no method %s", receiver.Name, exp.Name.Value)
 		}
 		methodEnv := object.NewEnclosedEnvironment(receiver.Definition.Env)
 		methodEnv.Set("self", receiver)
 		methodEnv.SetStructContext(receiver.Definition)
-		return applyFunction(newStructFunction(method, methodEnv), args)
+		return e.applyFunction(newStructFunction(method, methodEnv), args)
 
 	default:
 		return newError(
@@ -107,7 +107,7 @@ func evalMemberCall(
 	}
 }
 
-func evalSliceMethod(
+func (e *Evaluator) evalSliceMethod(
 	slice *object.Slice,
 	name string,
 	args []object.Object,
@@ -132,7 +132,7 @@ func evalSliceMethod(
 	}
 }
 
-func evalArrayMethod(
+func (e *Evaluator) evalArrayMethod(
 	array *object.Array,
 	name string,
 	args []object.Object,
@@ -163,12 +163,12 @@ func evalArrayMethod(
 	}
 }
 
-func evalMemberAssignment(
+func (e *Evaluator) evalMemberAssignment(
 	target *ast.MemberExpression,
 	valueExpression ast.Expression,
 	env *object.Environment,
 ) object.Object {
-	receiverObject := Eval(target.Receiver, env)
+	receiverObject := e.eval(target.Receiver, env)
 	if isError(receiverObject) {
 		return receiverObject
 	}
@@ -177,22 +177,22 @@ func evalMemberAssignment(
 		return newError("cannot assign member %s on %s", target.Name.Value, receiverObject.Type())
 	}
 
-	field := findStructField(receiver.Definition, target.Name.Value)
+	field := e.findStructField(receiver.Definition, target.Name.Value)
 	if field == nil {
 		return newError("struct %s has no field %s", receiver.Name, target.Name.Value)
 	}
-	if !field.Public && !hasStructAccess(receiver, env) {
+	if !field.Public && !e.hasStructAccess(receiver, env) {
 		return newError("field %s.%s is private", receiver.Name, target.Name.Value)
 	}
-	if !hasStructAccess(receiver, env) {
+	if !e.hasStructAccess(receiver, env) {
 		return newError("cannot assign to field outside its struct: %s", target.Name.Value)
 	}
 
-	value := Eval(valueExpression, env)
+	value := e.eval(valueExpression, env)
 	if isError(value) {
 		return value
 	}
-	coerced, err := coerceRuntimeArgument(value, field.Type)
+	coerced, err := e.coerceRuntimeArgument(value, field.Type)
 	if err != nil {
 		return newError("assignment to %s.%s: %s", receiver.Name, target.Name.Value, err.Error())
 	}
@@ -200,11 +200,11 @@ func evalMemberAssignment(
 	return nil
 }
 
-func hasStructAccess(receiver *object.Struct, env *object.Environment) bool {
+func (e *Evaluator) hasStructAccess(receiver *object.Struct, env *object.Environment) bool {
 	return env.StructContext() == receiver.Definition
 }
 
-func findStructField(definition *object.StructDefinition, name string) *ast.StructField {
+func (e *Evaluator) findStructField(definition *object.StructDefinition, name string) *ast.StructField {
 	if definition == nil || definition.Declaration == nil {
 		return nil
 	}
@@ -216,7 +216,7 @@ func findStructField(definition *object.StructDefinition, name string) *ast.Stru
 	return nil
 }
 
-func findStructFunction(functions []*ast.FunctionStatement, name string) *ast.FunctionStatement {
+func (e *Evaluator) findStructFunction(functions []*ast.FunctionStatement, name string) *ast.FunctionStatement {
 	for _, function := range functions {
 		if function.Name.Value == name {
 			return function

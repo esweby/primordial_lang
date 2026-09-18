@@ -12,253 +12,42 @@ import (
 var (
 	TRUE       = &object.Boolean{Value: true}
 	FALSE      = &object.Boolean{Value: false}
-	loopDepth  = 0
-	loopLabels = []string{}
 )
 
-func Eval(node ast.Node, env *object.Environment) object.Object {
-	switch node := node.(type) {
-	case *ast.Program:
-		return evalProgram(node.Statements, env)
-	case *ast.DeclareStatement:
-		var value object.Object
-		if forLoop, ok := node.Value.(*ast.ForLoop); ok {
-			value = evalForLoop(forLoop, env, true)
-		} else {
-			value = Eval(node.Value, env)
-		}
-		if isError(value) {
-			return value
-		}
-		if node.GetType() != nil {
-			coerced, err := coerceRuntimeArgument(value, node.GetType())
-			if err != nil {
-				return newError("declaration %s: %s", node.Name.Value, err.Error())
-			}
-			value = coerced
-		}
-		env.Set(node.Name.Value, value)
-		return nil
-	case *ast.StructStatement:
-		env.Set(node.Name.Value, &object.StructDefinition{Declaration: node, Env: env})
-		return nil
-	case *ast.StructLiteral:
-		return evalStructLiteral(node, env)
-	case *ast.MapLiteral:
-		return evalMapLiteral(node, env)
-	case *ast.ArrayLiteral:
-		return evalArrayLiteral(node, env)
-	case *ast.SliceLiteral:
-		elements := evalTypedExpressions(node.Elements, node.Type, env)
-		if len(elements) == 1 && isError(elements[0]) {
-			return elements[0]
-		}
+type Evaluator struct {
+	loopDepth int
+	loopLabels []string
 
-		return &object.Slice{Elements: elements}
-	case *ast.IndexExpression:
-		left := Eval(node.Left, env)
-		if isError(left) {
-			return left
-		}
-
-		index := Eval(node.Index, env)
-		if isError(index) {
-			return index
-		}
-
-		return evalIndexExpression(left, index)
-	case *ast.TupleDeclareStatement:
-		return evalTupleDeclaration(node, env)
-	case *ast.AssignStatement:
-		if node.Name == nil {
-			// handle member/index assignment (existing logic)
-			target, ok := node.Target.(*ast.MemberExpression)
-			if !ok {
-				if target, ok := node.Target.(*ast.IndexExpression); ok {
-					return evalIndexAssignment(target, node.Value, env)
-				}
-				return newError("invalid assignment target")
-			}
-			return evalMemberAssignment(target, node.Value, env)
-		}
-		var value object.Object
-		if forLoop, ok := node.Value.(*ast.ForLoop); ok {
-			value = evalForLoop(forLoop, env, true)
-		} else {
-			value = Eval(node.Value, env)
-		}
-		if isError(value) {
-			return value
-		}
-		if current, found := env.Get(node.Name.Value); found {
-			if integer, ok := current.(*object.Integer); ok {
-				coerced, err := coerceRuntimeArgument(value, integer.IntegerType)
-				if err != nil {
-					return newError("assignment to %s: %s", node.Name.Value, err.Error())
-				}
-				value = coerced
-			}
-		}
-		if _, ok := env.Assign(node.Name.Value, value); !ok {
-			return newError("identifier not found: %s", node.Name.Value)
-		}
-		return nil
-	case *ast.TupleAssignStatement:
-		return evalTupleAssignment(node, env)
-	case *ast.FunctionLiteral:
-		return &object.Function{
-			Name:        "",
-			Parameters:  node.Parameters,
-			ReturnTypes: node.ReturnTypes,
-			Body:        node.Body,
-			Env:         env,
-		}
-	case *ast.FunctionStatement:
-		fn := &object.Function{
-			Name:        node.Name.Value,
-			Parameters:  node.Parameters,
-			ReturnTypes: node.ReturnTypes,
-			Body:        node.Body,
-			Env:         env,
-		}
-
-		env.Set(node.Name.Value, fn)
-		return fn
-	case *ast.CallExpression:
-		if member, ok := node.Function.(*ast.MemberExpression); ok {
-			return evalMemberCall(member, node.Arguments, env)
-		}
-		if identifier, ok := node.Function.(*ast.Identifier); ok {
-			if target, isBuiltinType := types.GetBuiltin(identifier.Value); isBuiltinType && types.IsInteger(target) {
-				return evalIntegerConversion(node, target, env)
-			}
-		}
-
-		function := Eval(node.Function, env)
-		if isError(function) {
-			return function
-		}
-
-		args := evalExpressions(node.Arguments, env)
-		if len(args) == 1 && isError(args[0]) {
-			return args[0]
-		}
-
-		return applyFunction(function, args)
-	case *ast.MemberExpression:
-		return evalMemberProperty(node, env)
-	case *ast.BlockExpression:
-		return evalBlock(node, env)
-	case *ast.ExpressionStatement:
-		if forLoop, ok := node.Expression.(*ast.ForLoop); ok {
-			return evalForLoop(forLoop, env, false)
-		}
-		return Eval(node.Expression, env)
-	case *ast.ReturnStatement:
-		return evalReturnStatement(node, env)
-	case *ast.IfExpression:
-		return evalIfExpression(node, env)
-
-	// Expressions
-	case *ast.Identifier:
-		return evalIdentifier(node, env)
-	case *ast.IntegerLiteral:
-		integerType := node.GetResolvedType()
-		if integerType == nil {
-			integerType = types.UntypedIntegerType
-		}
-		return newIntegerObject(node.Value, integerType)
-	case *ast.StringLiteral:
-		return &object.String{Value: node.Value}
-	case *ast.Boolean:
-		return nativeBoolToBooleanObject(node.Value)
-	case *ast.PrefixExpression:
-		right := Eval(node.Right, env)
-		if isError(right) {
-			return right
-		}
-		return evalPrefixExpression(node.Operator, right, node.GetResolvedType())
-	case *ast.InfixExpression:
-		left := Eval(node.Left, env)
-		if isError(left) {
-			return left
-		}
-		right := Eval(node.Right, env)
-		if isError(right) {
-			return right
-		}
-		return evalInfixExpression(node.Operator, left, right, node.GetResolvedType())
-	case *ast.BreakStatement:
-		return evalBreakStatement(node, env)
-	case *ast.ContinueStatement:
-		return evalContinueStatement(node, env)
-	}
-
-	return nil
+	node ast.Node
+	env *object.Environment
 }
 
-func evalTupleDeclaration(stmt *ast.TupleDeclareStatement, env *object.Environment) object.Object {
-	value := Eval(stmt.Value, env)
-	if isError(value) {
-		return value
+func New(node ast.Node, env *object.Environment) *Evaluator {
+	return &Evaluator{
+		loopDepth: 0,
+		loopLabels: []string{},
+		node: node,
+		env: env,
 	}
+}
 
-	tuple, ok := value.(*object.Tuple)
+// In the original monkey language the Evaluator is given the first 
+// ast.Node created by the parser and start recursively working its 
+// way through the ast. Evaluate will be the public API to start
+// this process.
+func (e *Evaluator) Evaluate() object.Object {
+	program, ok := e.node.(*ast.Program)
 	if !ok {
-		return newError("tuple declaration requires a tuple value, got %s", value.Type())
+		// no program provided
+		return nil
 	}
-	if len(stmt.Names) != len(tuple.Elements) {
-		return newError("tuple declaration arity mismatch: expected %d names, got %d",
-			len(tuple.Elements), len(stmt.Names))
-	}
-
-	for i, name := range stmt.Names {
-		if name.Value != "_" {
-			env.Set(name.Value, tuple.Elements[i])
-		}
-	}
-
-	return nil
+	return e.evalProgram(program.Statements, e.env)
 }
 
-func evalTupleAssignment(stmt *ast.TupleAssignStatement, env *object.Environment) object.Object {
-	value := Eval(stmt.Value, env)
-	if isError(value) {
-		return value
-	}
-
-	tuple, ok := value.(*object.Tuple)
-	if !ok {
-		return newError("tuple assignment requires a tuple value, got %s", value.Type())
-	}
-	if len(stmt.Names) != len(tuple.Elements) {
-		return newError("tuple assignment arity mismatch: expected %d names, got %d",
-			len(tuple.Elements), len(stmt.Names))
-	}
-
-	// Validate every target before changing any binding so assignment is atomic.
-	for _, name := range stmt.Names {
-		if name.Value == "_" {
-			continue
-		}
-		if _, found := env.Get(name.Value); !found {
-			return newError("identifier not found: %s", name.Value)
-		}
-	}
-
-	for i, name := range stmt.Names {
-		if name.Value != "_" {
-			env.Assign(name.Value, tuple.Elements[i])
-		}
-	}
-
-	return nil
-}
-
-func evalProgram(stmts []ast.Statement, env *object.Environment) object.Object {
+func (e *Evaluator) evalProgram(stmts []ast.Statement, env *object.Environment) object.Object {
 	var result object.Object
 	for _, stmt := range stmts {
-		result = Eval(stmt, env)
+		result = e.eval(stmt, env)
 		switch result.(type) {
 		case *object.ReturnValue, *object.Error, *object.Break, *object.Continue:
 			return result
@@ -267,543 +56,20 @@ func evalProgram(stmts []ast.Statement, env *object.Environment) object.Object {
 	return result
 }
 
-func evalArrayLiteral(
-	arr *ast.ArrayLiteral,
-	env *object.Environment,
-) object.Object {
-	elements := evalTypedExpressions(arr.Elements, arr.Type, env)
-	if len(elements) == 1 && isError(elements[0]) {
-		return elements[0]
-	}
-
-	for len(elements) < arr.Size {
-		neutral, ok := neutralObject(arr.Type)
-		if !ok {
-			return newError(
-				"internal error: no neutral value for type %s",
-				arr.Type.Name(),
-			)
-		}
-
-		elements = append(elements, neutral)
-	}
-
-	return &object.Array{Elements: elements}
-}
-
-func evalBlock(block *ast.BlockExpression, env *object.Environment) object.Object {
-	var result object.Object
-	for _, stmt := range block.Statements {
-		result = Eval(stmt, env)
-		if result == nil {
-			continue
-		}
-		switch result.(type) {
-		case *object.ReturnValue, *object.Error, *object.Break, *object.Continue:
-			return result
-		}
-	}
-	return result
-}
-
-func evalExpressions(args []ast.Expression, env *object.Environment) []object.Object {
-	var result []object.Object
-	for _, e := range args {
-		var evaluated object.Object
-		if forLoop, ok := e.(*ast.ForLoop); ok {
-			evaluated = evalForLoop(forLoop, env, true)
-		} else {
-			evaluated = Eval(e, env)
-		}
-		if isError(evaluated) {
-			return []object.Object{evaluated}
-		}
-		result = append(result, evaluated)
-	}
-	return result
-}
-
-func evalIndexExpression(left, index object.Object) object.Object {
-	switch {
-	case left.Type() == object.ARRAY_OBJ && index.Type() == object.INTEGER_OBJ:
-		return evalArrayIndexExpression(left, index)
-	case left.Type() == object.SLICE_OBJ && index.Type() == object.INTEGER_OBJ:
-		return evalSliceIndexExpression(left, index)
-	case left.Type() == object.MAP_OBJ:
-		return evalMapIndexExpression(left, index)
+func (e *Evaluator) eval(node ast.Node, env *object.Environment) object.Object {
+	switch node := node.(type) {
+	case ast.Statement:
+		return e.evalStatement(node, env)
+	case ast.Expression:
+		return e.evalExpression(node, env)
 	default:
-		return newError("index operator not supported: %s", left.Type())
-	}
-}
-
-func evalArrayIndexExpression(array, index object.Object) object.Object {
-	arrayObject := array.(*object.Array)
-	indexValue := index.(*object.Integer).Value
-	if !indexValue.IsInt64() {
-		return newError("array index is outside the supported range: %s", indexValue.String())
-	}
-	idx := indexValue.Int64()
-	max := int64(len(arrayObject.Elements) - 1)
-
-	if idx < 0 || idx > max {
-		return newError("array index out of bounds: %d", idx)
-	}
-
-	return arrayObject.Elements[idx]
-}
-
-func evalSliceIndexExpression(array, index object.Object) object.Object {
-	slice := array.(*object.Slice)
-	indexValue := index.(*object.Integer).Value
-	if !indexValue.IsInt64() {
-		return newError("slice index is outside the supported range: %s", indexValue.String())
-	}
-	idx := indexValue.Int64()
-	max := int64(len(slice.Elements) - 1)
-
-	if idx < 0 || idx > max {
-		return newError("array index out of bounds: %d", idx)
-	}
-
-	return slice.Elements[idx]
-}
-
-func evalMapIndexExpression(m, index object.Object) object.Object {
-	mo := m.(*object.Map)
-
-	coercedKey, err := coerceRuntimeArgument(index, mo.MapType.Key)
-	if err != nil {
-		return newError("map index: %s", err.Error())
-	}
-
-	hashable, ok := coercedKey.(object.Hashable)
-	if !ok {
-		return newError("unhashable type as map key: %s", coercedKey.Type())
-	}
-
-	value, ok := mo.Pairs[hashable.HashKey()]
-	if !ok {
-		return newError("key not found in map: %s", hashable.HashKey())
-	}
-
-	return value
-}
-
-func applyFunction(fn object.Object, args []object.Object) object.Object {
-	if fn == nil {
-		return newError("attempted to call missing function value")
-	}
-
-	switch fn := fn.(type) {
-	case *object.Function:
-		if len(args) != len(fn.Parameters) {
-			return newError("wrong number of arguments: expected %d, got %d", len(fn.Parameters), len(args))
-		}
-		for i, parameter := range fn.Parameters {
-			coerced, err := coerceRuntimeArgument(args[i], parameter.Type)
-			if err != nil {
-				return newError("argument %d: %s", i, err.Error())
-			}
-			args[i] = coerced
-		}
-		extendedEnv := extendFunctionEnv(fn, args)
-		evaluated := Eval(fn.Body, extendedEnv)
-		if isError(evaluated) {
-			return evaluated
-		}
-		if _, ok := evaluated.(*object.Break); ok {
-			return evaluated
-		}
-		if _, ok := evaluated.(*object.Continue); ok {
-			return evaluated
-		}
-		return coerceFunctionResult(fn, unwrapReturnValue(evaluated))
-	case *object.Builtin:
-		return fn.Fn(args...)
-	}
-
-	return newError("not a function: %s", fn.Type())
-}
-
-func extendFunctionEnv(fn *object.Function, args []object.Object) *object.Environment {
-	env := object.NewEnclosedEnvironment(fn.Env)
-
-	for paramIdx, param := range fn.Parameters {
-		env.Set(param.Name.Value, args[paramIdx])
-	}
-
-	return env
-}
-
-func unwrapReturnValue(obj object.Object) object.Object {
-	returnValue, ok := obj.(*object.ReturnValue)
-	if !ok {
-		return obj
-	}
-
-	switch len(returnValue.Value) {
-	case 0:
+		// TODO: Diagnostics
 		return nil
-	case 1:
-		return returnValue.Value[0]
-	default:
-		return &object.Tuple{
-			Elements: returnValue.Value,
-		}
 	}
-}
-
-func evalReturnStatement(rs *ast.ReturnStatement, env *object.Environment) object.Object {
-	values := []object.Object{}
-
-	for _, v := range rs.ReturnValues {
-		values = append(values, Eval(v, env))
-	}
-
-	return &object.ReturnValue{Value: values}
-}
-
-func evalIfExpression(ie *ast.IfExpression, env *object.Environment) object.Object {
-	condition := Eval(ie.Condition, env)
-	if isError(condition) {
-		return condition
-	}
-	if isTruthy(condition) {
-		res := Eval(ie.Body, object.NewEnclosedEnvironment(env))
-		if res == nil {
-			return nil
-		}
-		// propagate break/continue/error immediately
-		if _, ok := res.(*object.Break); ok {
-			return res
-		}
-		if _, ok := res.(*object.Continue); ok {
-			return res
-		}
-		return res
-	} else if ie.Else != nil {
-		res := Eval(ie.Else, object.NewEnclosedEnvironment(env))
-		if res == nil {
-			return nil
-		}
-		if _, ok := res.(*object.Break); ok {
-			return res
-		}
-		if _, ok := res.(*object.Continue); ok {
-			return res
-		}
-		return res
-	}
-	return nil
-}
-
-func evalIdentifier(i *ast.Identifier, env *object.Environment) object.Object {
-	if val, ok := env.Get(i.Value); ok {
-		return val
-
-	}
-
-	if val, ok := builtins[i.Value]; ok {
-		return val
-	}
-
-	return newError("%s", "identifier not found: "+i.Value)
-}
-
-func evalPrefixExpression(op string, r object.Object, resultType types.Type) object.Object {
-	switch op {
-	case "!":
-		return evalBangOperatorExpression(r)
-	case "-":
-		return evalMinusPrefixOperatorExpression(r, resultType)
-	default:
-		return newError("unknown operator: %s %s", op, r.Type())
-	}
-}
-
-func evalInfixExpression(operator string, left, right object.Object, resultType types.Type) object.Object {
-	switch {
-	case left.Type() == object.INTEGER_OBJ && right.Type() == object.INTEGER_OBJ:
-		return evalIntegerInfixExpression(operator, left, right, resultType)
-	case left.Type() == object.STRING_OBJ && right.Type() == object.STRING_OBJ:
-		return evalStringInfixExpression(operator, left, right)
-	case operator == "==":
-		return nativeBoolToBooleanObject(left == right)
-	case operator == "!=":
-		return nativeBoolToBooleanObject(left != right)
-	case left.Type() != right.Type():
-		return newError("type mismatch: %s %s %s", left.Type(), operator, right.Type())
-	default:
-		return newError("unknown operator: %s %s %s", left.Type(), operator, right.Type())
-	}
-}
-
-func evalIntegerInfixExpression(operator string, left, right object.Object, resultType types.Type) object.Object {
-	leftInteger := left.(*object.Integer)
-	rightInteger := right.(*object.Integer)
-
-	// Coerce untyped integer to match the other operand's concrete type
-	if types.IsUntypedInteger(leftInteger.IntegerType) && !types.IsUntypedInteger(rightInteger.IntegerType) {
-		coerced, err := coerceRuntimeArgument(left, rightInteger.IntegerType)
-		if err != nil {
-			return newError("integer coercion: %s", err.Error())
-		}
-		leftInteger = coerced.(*object.Integer)
-	} else if types.IsUntypedInteger(rightInteger.IntegerType) && !types.IsUntypedInteger(leftInteger.IntegerType) {
-		coerced, err := coerceRuntimeArgument(right, leftInteger.IntegerType)
-		if err != nil {
-			return newError("integer coercion: %s", err.Error())
-		}
-		rightInteger = coerced.(*object.Integer)
-	}
-
-	if !types.IsTypesEqual(leftInteger.IntegerType, rightInteger.IntegerType) {
-		return newError("integer type mismatch: %s and %s", leftInteger.IntegerType.Name(), rightInteger.IntegerType.Name())
-	}
-
-	leftVal := leftInteger.Value
-	rightVal := rightInteger.Value
-	if resultType == nil {
-		resultType = leftInteger.IntegerType
-	}
-
-	if resultType == nil {
-		resultType = leftInteger.IntegerType
-	}
-
-	switch operator {
-	case "+":
-		return checkedIntegerResult(new(big.Int).Add(leftVal, rightVal), resultType)
-	case "-":
-		return checkedIntegerResult(new(big.Int).Sub(leftVal, rightVal), resultType)
-	case "*":
-		return checkedIntegerResult(new(big.Int).Mul(leftVal, rightVal), resultType)
-	case "/":
-		if rightVal.Sign() == 0 {
-			return newError("division by zero")
-		}
-		return checkedIntegerResult(new(big.Int).Quo(leftVal, rightVal), resultType)
-	case "<":
-		return nativeBoolToBooleanObject(leftVal.Cmp(rightVal) < 0)
-	case ">":
-		return nativeBoolToBooleanObject(leftVal.Cmp(rightVal) > 0)
-	case "<=":
-		return nativeBoolToBooleanObject(leftVal.Cmp(rightVal) <= 0)
-	case ">=":
-		return nativeBoolToBooleanObject(leftVal.Cmp(rightVal) >= 0)
-	case "==":
-		return nativeBoolToBooleanObject(leftVal.Cmp(rightVal) == 0)
-	case "!=":
-		return nativeBoolToBooleanObject(leftVal.Cmp(rightVal) != 0)
-	default:
-		return newError("unknown operator: %s %s %s", left.Type(), operator, right.Type())
-	}
-}
-
-func evalStringInfixExpression(operator string, left, right object.Object) object.Object {
-	leftVal := left.(*object.String).Value
-	rightVal := right.(*object.String).Value
-
-	switch operator {
-	case "+":
-		return &object.String{Value: leftVal + rightVal}
-	case "==":
-		return nativeBoolToBooleanObject(leftVal == rightVal)
-	case "!=":
-		return nativeBoolToBooleanObject(leftVal != rightVal)
-	default:
-		return newError("unknown operator: %s %s %s", left.Type(), operator, right.Type())
-	}
-}
-
-func evalStructLiteral(literal *ast.StructLiteral, env *object.Environment) object.Object {
-	definitionObject, ok := env.Get(literal.Name.Value)
-	if !ok {
-		return newError("unknown struct type: %s", literal.Name.Value)
-	}
-	definition, ok := definitionObject.(*object.StructDefinition)
-	if !ok {
-		return newError("%s is not a struct type", literal.Name.Value)
-	}
-
-	declaredFields := make(map[string]*ast.StructField, len(definition.Declaration.Fields))
-	for _, field := range definition.Declaration.Fields {
-		declaredFields[field.Name.Value] = field
-	}
-
-	provided := make(map[string]ast.Expression, len(literal.Fields))
-	for _, field := range literal.Fields {
-		if _, exists := declaredFields[field.Name.Value]; !exists {
-			return newError("type %s has no field %s", literal.Name.Value, field.Name.Value)
-		}
-		if _, duplicate := provided[field.Name.Value]; duplicate {
-			return newError("field %s supplied more than once", field.Name.Value)
-		}
-		provided[field.Name.Value] = field.Value
-	}
-
-	fields := make(map[string]object.Object, len(definition.Declaration.Fields))
-	for _, declared := range definition.Declaration.Fields {
-		expression, supplied := provided[declared.Name.Value]
-		evaluationEnv := env
-		if !supplied {
-			expression = declared.Value
-			evaluationEnv = definition.Env
-		}
-		if expression == nil {
-			return newError("missing required field %s.%s", literal.Name.Value, declared.Name.Value)
-		}
-		value := Eval(expression, evaluationEnv)
-		if isError(value) {
-			return value
-		}
-		coerced, err := coerceRuntimeArgument(value, declared.Type)
-		if err != nil {
-			return newError("field %s.%s: %s", literal.Name.Value, declared.Name.Value, err.Error())
-		}
-		fields[declared.Name.Value] = coerced
-	}
-
-	return &object.Struct{Name: literal.Name.Value, Definition: definition, Fields: fields}
-}
-
-func evalMapLiteral(m *ast.MapLiteral, env *object.Environment) object.Object {
-	mapType, ok := m.Type.(*types.Map)
-	if !ok {
-		return newError("invalid map type: %T", m.Type)
-	}
-
-	pairs := make(map[object.HashKey]object.Object, len(m.Pairs))
-	originalKeys := make(map[object.HashKey]object.Object, len(m.Pairs))
-	keys := make([]object.HashKey, 0, len(m.Pairs))
-
-	for _, pair := range m.Pairs {
-		// Evaluate key
-		keyObj := Eval(pair.Key, env)
-		if isError(keyObj) {
-			return keyObj
-		}
-		// Coerce key to map key type
-		coercedKey, err := coerceRuntimeArgument(keyObj, mapType.Key)
-		if err != nil {
-			return newError("map key %s: %s", pair.Key.String(), err.Error())
-		}
-		hashable, ok := coercedKey.(object.Hashable)
-		if !ok {
-			return newError("coercedKey is not object.Hashable")
-		}
-		hk := hashable.HashKey()
-
-		// Evaluate value
-		valueObj := Eval(pair.Value, env)
-		if isError(valueObj) {
-			return valueObj
-		}
-		coercedValue, err := coerceRuntimeArgument(valueObj, mapType.Value)
-		if err != nil {
-			return newError("map value for key %s: %s", pair.Key.String(), err.Error())
-		}
-
-		pairs[hk] = coercedValue
-		originalKeys[hk] = coercedKey // store the coerced key object
-		keys = append(keys, hk)
-	}
-
-	return &object.Map{
-		MapType:      mapType,
-		Pairs:        pairs,
-		Keys:         keys,
-		OriginalKeys: originalKeys,
-	}
-}
-
-func evalIndexAssignment(
-	target *ast.IndexExpression,
-	valueExpression ast.Expression,
-	env *object.Environment,
-) object.Object {
-	lhs := Eval(target.Left, env)
-	if isError(lhs) {
-		return lhs
-	}
-
-	m, ok := lhs.(*object.Map)
-	if !ok {
-		return newError("cannot assign to non-map object %s", lhs.Type())
-	}
-
-	index := Eval(target.Index, env)
-	if isError(index) {
-		return index
-	}
-
-	coercedKey, err := coerceRuntimeArgument(index, m.MapType.Key)
-	if err != nil {
-		return newError("map key %s: %s", m.MapType.Key.Name(), err.Error())
-	}
-
-	hashKey, ok := coercedKey.(object.Hashable)
-	if !ok {
-		return newError("coercedKey is not object.Hashabkle")
-	}
-
-	value := Eval(valueExpression, env)
-	if isError(value) {
-		return value
-	}
-
-	m.Pairs[hashKey.HashKey()] = value
-
-	return m
-}
-
-func evalIntegerConversion(call *ast.CallExpression, target types.Type, env *object.Environment) object.Object {
-	if len(call.Arguments) != 1 {
-		return newError("integer conversion to %s expects 1 argument, got %d", target.Name(), len(call.Arguments))
-	}
-	value := Eval(call.Arguments[0], env)
-	if isError(value) {
-		return value
-	}
-	integer, ok := value.(*object.Integer)
-	if !ok {
-		return newError("cannot convert %s to %s", value.Type(), target.Name())
-	}
-	concrete := target.(*types.Integer)
-	if !concrete.CanRepresent(integer.Value) {
-		return newError("integer conversion overflow: %s is not representable as %s", integer.Value.String(), target.Name())
-	}
-	return newIntegerObject(integer.Value, target)
-}
-
-func evalBangOperatorExpression(expr object.Object) object.Object {
-	switch expr {
-	case TRUE:
-		return FALSE
-	case FALSE:
-		return TRUE
-	default:
-		return FALSE
-	}
-}
-
-func evalMinusPrefixOperatorExpression(expr object.Object, resultType types.Type) object.Object {
-	integer, ok := expr.(*object.Integer)
-	if !ok {
-		return newError("unknown operator: -%s", expr.Type())
-	}
-
-	if resultType == nil {
-		resultType = integer.IntegerType
-	}
-	if integerType, ok := resultType.(*types.Integer); ok && !integerType.Signed() {
-		return newError("cannot negate unsigned integer %s", resultType.Name())
-	}
-	return checkedIntegerResult(new(big.Int).Neg(integer.Value), resultType)
 }
 
 // Helper functions
-func nativeBoolToBooleanObject(input bool) *object.Boolean {
+func (e *Evaluator) nativeBoolToBooleanObject(input bool) *object.Boolean {
 	if input {
 		return TRUE
 	}
@@ -811,7 +77,7 @@ func nativeBoolToBooleanObject(input bool) *object.Boolean {
 	return FALSE
 }
 
-func isTruthy(obj object.Object) bool {
+func (e *Evaluator) isTruthy(obj object.Object) bool {
 	switch obj {
 	case TRUE:
 		return true
@@ -822,298 +88,7 @@ func isTruthy(obj object.Object) bool {
 	}
 }
 
-func evalForLoop(node *ast.ForLoop, env *object.Environment, expectsValue bool) object.Object {
-	loopDepth++
-	if node.Label != nil {
-		loopLabels = append(loopLabels, node.Label.Value)
-	}
-	defer func() {
-		loopDepth--
-		if node.Label != nil {
-			loopLabels = loopLabels[:len(loopLabels)-1]
-		}
-	}()
-
-	loopEnv := object.NewEnclosedEnvironment(env)
-	var result object.Object
-	var hasResult bool
-
-	matchesBreak := func(label string) bool {
-		if label == "" {
-			return true
-		}
-		if node.Label == nil {
-			return false
-		}
-		return label == node.Label.Value
-	}
-
-	switch ctrl := node.Controller.(type) {
-	case *ast.Infinite:
-		for {
-			bodyResult := Eval(node.Body, loopEnv)
-			if isError(bodyResult) {
-				return bodyResult
-			}
-			if br, ok := bodyResult.(*object.Break); ok {
-				if matchesBreak(br.Label) {
-					if br.Value != nil {
-						if expectsValue {
-							return br.Value
-						}
-						result = br.Value
-						hasResult = true
-					}
-					goto exitLoop
-				} else {
-					return bodyResult
-				}
-			}
-			if _, ok := bodyResult.(*object.Continue); ok {
-				continue
-			}
-		}
-
-	case *ast.While:
-		for {
-			cond := Eval(ctrl.Condition, loopEnv)
-			if isError(cond) {
-				return cond
-			}
-			if !isTruthy(cond) {
-				break
-			}
-			bodyResult := Eval(node.Body, loopEnv)
-			if isError(bodyResult) {
-				return bodyResult
-			}
-			if br, ok := bodyResult.(*object.Break); ok {
-				if matchesBreak(br.Label) {
-					if br.Value != nil {
-						if expectsValue {
-							return br.Value
-						}
-						result = br.Value
-						hasResult = true
-					}
-					goto exitLoop
-				} else {
-					return bodyResult
-				}
-			}
-			if _, ok := bodyResult.(*object.Continue); ok {
-				continue
-			}
-		}
-
-	case *ast.Constructed:
-		Eval(ctrl.Initializer, loopEnv)
-		for {
-			cond := Eval(ctrl.Condition, loopEnv)
-			if isError(cond) {
-				return cond
-			}
-			if !isTruthy(cond) {
-				break
-			}
-			bodyResult := Eval(node.Body, loopEnv)
-			if isError(bodyResult) {
-				return bodyResult
-			}
-			if br, ok := bodyResult.(*object.Break); ok {
-				if matchesBreak(br.Label) {
-					if br.Value != nil {
-						if expectsValue {
-							return br.Value
-						}
-						result = br.Value
-						hasResult = true
-					}
-					goto exitLoop
-				} else {
-					return bodyResult
-				}
-			}
-			if _, ok := bodyResult.(*object.Continue); ok {
-				// Execute iterator and continue
-				Eval(ctrl.Iterator, loopEnv)
-				continue
-			}
-			// Normal: execute iterator
-			Eval(ctrl.Iterator, loopEnv)
-		}
-
-	case *ast.Range:
-		iterableObj := Eval(ctrl.Iterable, loopEnv)
-		if isError(iterableObj) {
-			return iterableObj
-		}
-		elements := iterableToElements(iterableObj)
-		for _, elem := range elements {
-			if len(ctrl.Variables) == 1 {
-				loopEnv.Set(ctrl.Variables[0].Value, elem)
-			} else if len(ctrl.Variables) == 2 {
-				if tuple, ok := elem.(*object.Tuple); ok && len(tuple.Elements) == 2 {
-					loopEnv.Set(ctrl.Variables[0].Value, tuple.Elements[0])
-					loopEnv.Set(ctrl.Variables[1].Value, tuple.Elements[1])
-				}
-			}
-			bodyResult := Eval(node.Body, loopEnv)
-			if isError(bodyResult) {
-				return bodyResult
-			}
-			if br, ok := bodyResult.(*object.Break); ok {
-				if matchesBreak(br.Label) {
-					if br.Value != nil {
-						if expectsValue {
-							return br.Value
-						}
-						result = br.Value
-						hasResult = true
-					}
-					goto exitLoop
-				} else {
-					return bodyResult
-				}
-			}
-			if _, ok := bodyResult.(*object.Continue); ok {
-				continue
-			}
-		}
-	}
-
-exitLoop:
-	if expectsValue && !hasResult {
-		return object.VOID
-	}
-	if hasResult {
-		return result
-	}
-	return object.VOID
-}
-
-func iterableToElements(obj object.Object) []object.Object {
-	switch o := obj.(type) {
-	case *object.Array:
-		elements := make([]object.Object, len(o.Elements))
-		for i, val := range o.Elements {
-			elements[i] = &object.Tuple{
-				Elements: []object.Object{newIntegerObject(big.NewInt(int64(i)), types.Int64Type), val},
-			}
-		}
-		return elements
-	case *object.Slice:
-		elements := make([]object.Object, len(o.Elements))
-		for i, val := range o.Elements {
-			elements[i] = &object.Tuple{
-				Elements: []object.Object{newIntegerObject(big.NewInt(int64(i)), types.Int64Type), val},
-			}
-		}
-		return elements
-	case *object.Map:
-		// To iterate, we need to produce (key, value) tuples.
-		// Since we only have HashKey, we can't reconstruct the original key object.
-		// We could store original key objects in a separate map: OriginalKeys map[HashKey]Object
-		// Add that field to object.Map and fill it in evalMapLiteral.
-		// Then here we can retrieve the original key object.
-		// We'll implement that now.
-
-		// We'll assume object.Map has OriginalKeys map[HashKey]Object
-		elements := make([]object.Object, 0, len(o.Keys))
-		for _, hk := range o.Keys {
-			keyObj := o.OriginalKeys[hk] // need to add this field
-			valueObj := o.Pairs[hk]
-			elements = append(elements, &object.Tuple{
-				Elements: []object.Object{keyObj, valueObj},
-			})
-		}
-		return elements
-	case *object.String:
-		runes := []rune(o.Value)
-		elements := make([]object.Object, len(runes))
-		for i, r := range runes {
-			elements[i] = &object.Tuple{
-				Elements: []object.Object{
-					newIntegerObject(big.NewInt(int64(i)), types.Int64Type),
-					&object.String{Value: string(r)},
-				},
-			}
-		}
-		return elements
-	default:
-		return []object.Object{}
-	}
-}
-
-func evalBreakStatement(node *ast.BreakStatement, env *object.Environment) object.Object {
-	if loopDepth == 0 {
-		return newError("break outside of loop")
-	}
-	var label string
-	if node.Label != nil {
-		label = node.Label.Value
-		// Check if label exists in the stack
-		found := false
-		for _, lbl := range loopLabels {
-			if lbl == label {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return newError("break label '%s' does not match any enclosing loop", label)
-		}
-	}
-	var value object.Object
-	if node.Value != nil {
-		value = Eval(node.Value, env)
-		if isError(value) {
-			return value
-		}
-	}
-	return &object.Break{Label: label, Value: value}
-}
-
-func evalContinueStatement(_ *ast.ContinueStatement, _ *object.Environment) object.Object {
-	if loopDepth == 0 {
-		return newError("continue outside of loop")
-	}
-	return &object.Continue{}
-}
-
-func newError(format string, a ...interface{}) *object.Error {
-	return &object.Error{Message: fmt.Sprintf(format, a...)}
-}
-
-func isError(obj object.Object) bool {
-	return obj != nil && obj.Type() == object.ERROR_OBJ
-}
-
-func neutralObject(t types.Type) (object.Object, bool) {
-	switch t.Kind() {
-	case types.KindInteger:
-		return newIntegerObject(big.NewInt(0), t), true
-	case types.KindBoolean:
-		return &object.Boolean{Value: false}, true
-	case types.KindString:
-		return &object.String{Value: ""}, true
-	default:
-		return nil, false
-	}
-}
-
-func newIntegerObject(value *big.Int, integerType types.Type) *object.Integer {
-	return &object.Integer{Value: new(big.Int).Set(value), IntegerType: integerType}
-}
-
-func checkedIntegerResult(value *big.Int, integerType types.Type) object.Object {
-	if concrete, ok := integerType.(*types.Integer); ok && !concrete.CanRepresent(value) {
-		return newError("integer overflow: %s is not representable as %s", value.String(), concrete.Name())
-	}
-	return newIntegerObject(value, integerType)
-}
-
-func coerceRuntimeArgument(argument object.Object, target types.Type) (object.Object, error) {
+func (e *Evaluator) coerceRuntimeArgument(argument object.Object, target types.Type) (object.Object, error) {
 	if argument == nil || target == nil {
 		return argument, nil
 	}
@@ -1152,28 +127,12 @@ func coerceRuntimeArgument(argument object.Object, target types.Type) (object.Ob
 	return argument, nil
 }
 
-func evalTypedExpressions(expressions []ast.Expression, target types.Type, env *object.Environment) []object.Object {
-	result := make([]object.Object, 0, len(expressions))
-	for _, expression := range expressions {
-		value := Eval(expression, env)
-		if isError(value) {
-			return []object.Object{value}
-		}
-		coerced, err := coerceRuntimeArgument(value, target)
-		if err != nil {
-			return []object.Object{newError("%s", err.Error())}
-		}
-		result = append(result, coerced)
-	}
-	return result
-}
-
-func coerceFunctionResult(function *object.Function, result object.Object) object.Object {
+func (e *Evaluator) coerceFunctionResult(function *object.Function, result object.Object) object.Object {
 	if result == nil || len(function.ReturnTypes) == 0 {
 		return result
 	}
 	if len(function.ReturnTypes) == 1 {
-		coerced, err := coerceRuntimeArgument(result, function.ReturnTypes[0].Type)
+		coerced, err := e.coerceRuntimeArgument(result, function.ReturnTypes[0].Type)
 		if err != nil {
 			return newError("return value 0: %s", err.Error())
 		}
@@ -1184,11 +143,43 @@ func coerceFunctionResult(function *object.Function, result object.Object) objec
 		return newError("return value arity mismatch")
 	}
 	for i, returnType := range function.ReturnTypes {
-		coerced, err := coerceRuntimeArgument(tuple.Elements[i], returnType.Type)
+		coerced, err := e.coerceRuntimeArgument(tuple.Elements[i], returnType.Type)
 		if err != nil {
 			return newError("return value %d: %s", i, err.Error())
 		}
 		tuple.Elements[i] = coerced
 	}
 	return tuple
+}
+
+func newIntegerObject(value *big.Int, integerType types.Type) *object.Integer {
+	return &object.Integer{Value: new(big.Int).Set(value), IntegerType: integerType}
+}
+
+func (e *Evaluator) checkedIntegerResult(value *big.Int, integerType types.Type) object.Object {
+	if concrete, ok := integerType.(*types.Integer); ok && !concrete.CanRepresent(value) {
+		return newError("integer overflow: %s is not representable as %s", value.String(), concrete.Name())
+	}
+	return newIntegerObject(value, integerType)
+}
+
+func newError(format string, a ...interface{}) *object.Error {
+	return &object.Error{Message: fmt.Sprintf(format, a...)}
+}
+
+func isError(obj object.Object) bool {
+	return obj != nil && obj.Type() == object.ERROR_OBJ
+}
+
+func neutralObject(t types.Type) (object.Object, bool) {
+	switch t.Kind() {
+	case types.KindInteger:
+		return newIntegerObject(big.NewInt(0), t), true
+	case types.KindBoolean:
+		return &object.Boolean{Value: false}, true
+	case types.KindString:
+		return &object.String{Value: ""}, true
+	default:
+		return nil, false
+	}
 }
