@@ -110,6 +110,10 @@ type Error struct {
 func (e *Error) Type() ObjectType { return ERROR_OBJ }
 func (e *Error) Inspect() string  { return "ERROR: " + e.Message }
 
+func NewError(format string, a ...interface{}) *Error {
+	return &Error{Message: fmt.Sprintf(format, a...)}
+}
+
 type Function struct {
 	Name        string
 	Parameters  []*ast.Parameter
@@ -289,7 +293,6 @@ func (b *Break) Inspect() string {
 type Continue struct{}
 
 func (c *Continue) Type() ObjectType { return CONTINUE_OBJ }
-
 func (c *Continue) Inspect() string { return "continue" }
 
 type Void struct{}

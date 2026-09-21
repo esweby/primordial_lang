@@ -82,8 +82,8 @@ func evaluateSubmission(
 	}
 
 	symbols = sa.Symbols()
-
-	evaluated := evaluator.Eval(program, env)
+	evaluator := evaluator.New(program, env)
+	evaluated := evaluator.Evaluate()
 	if evaluated != nil {
 		io.WriteString(out, evaluated.Inspect())
 		io.WriteString(out, "\n")

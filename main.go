@@ -77,7 +77,8 @@ func runFile(filename string) {
 	}
 
 	env := object.NewEnvironment()
-	result := evaluator.Eval(program, env)
+	eval := evaluator.New(program, env)
+	result := eval.Evaluate()
 
 	if result != nil && result.Type() != object.VOID_OBJ {
 		fmt.Println(result.Inspect())
