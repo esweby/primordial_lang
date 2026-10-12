@@ -166,7 +166,7 @@ func (r *Resolver) resolveFunction(
 }
 
 // resolveType checks that every named type inside a type annotation refers to
-// a declared struct.
+// a declared struct, and links the named type to that struct's symbol.
 func (r *Resolver) resolveType(typ types.Type, tok token.Token) {
 	switch t := typ.(type) {
 	case nil:
@@ -179,7 +179,9 @@ func (r *Resolver) resolveType(typ types.Type, tok token.Token) {
 		}
 		if !sym.IsType() {
 			r.errorAt(tok, "%s is not a type", t.CustomName)
+			return
 		}
+		t.Symbol = sym
 	case *types.Array:
 		r.resolveType(t.ElementType(), tok)
 	case *types.Slice:

@@ -7,6 +7,7 @@ import (
 	"github.com/esweby/primordial_lang/ast"
 	"github.com/esweby/primordial_lang/lexer"
 	"github.com/esweby/primordial_lang/parser"
+	"github.com/esweby/primordial_lang/types"
 )
 
 func TestResolver_DeclareStatement(t *testing.T) {
@@ -229,6 +230,35 @@ func TestResolver_Builtins(t *testing.T) {
 	}
 	if sym.Scope != scope.ParentScope() || scope.Parent() == nil || scope.ParentScope().Parent() != nil {
 		t.Fatal("builtins should live in the universe scope above the program scope")
+	}
+}
+
+func TestResolver_NamedTypesLinkToStruct(t *testing.T) {
+	program, _ := mustResolve(t, `
+		struct Team { captain: Person; members: []Person; }
+		fn lead(team Team): Person { return team.captain; }
+		struct Person { name: string; }
+	`)
+
+	team := program.Statements[0].(*ast.StructStatement)
+	lead := program.Statements[1].(*ast.FunctionStatement)
+	person := program.Statements[2].(*ast.StructStatement)
+
+	named := []types.Type{
+		team.Fields[0].Type,
+		team.Fields[1].Type.(*types.Slice).ElementType(),
+		lead.ReturnTypes[0].Type,
+	}
+	for _, typ := range named {
+		sym, ok := typ.(*types.Named).Symbol.(*Symbol)
+		if !ok || sym.Declaration() != person {
+			t.Errorf("%s should link to the Person declaration, got %#v", typ.Name(), typ.(*types.Named).Symbol)
+		}
+	}
+
+	param := lead.Parameters[0].Type.(*types.Named).Symbol.(*Symbol)
+	if param.Declaration() != team {
+		t.Errorf("parameter type should link to the Team declaration, got %#v", param)
 	}
 }
 
