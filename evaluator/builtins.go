@@ -16,11 +16,11 @@ var builtins = map[string]*object.Builtin{
 
 			switch arg := args[0].(type) {
 			case *object.Array:
-				return newIntegerObject(big.NewInt(int64(len(arg.Elements))), types.Int64Type)
+				return newIntegerObject(big.NewInt(int64(len(arg.Elements))), types.IntType)
 			case *object.Slice:
-				return newIntegerObject(big.NewInt(int64(len(arg.Elements))), types.Int64Type)
+				return newIntegerObject(big.NewInt(int64(len(arg.Elements))), types.IntType)
 			case *object.String:
-				return newIntegerObject(big.NewInt(int64(len(arg.Value))), types.Int64Type)
+				return newIntegerObject(big.NewInt(int64(len(arg.Value))), types.IntType)
 			default:
 				return newError("argument to `len` not supported, got %s", args[0].Type())
 			}

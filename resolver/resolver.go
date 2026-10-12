@@ -27,6 +27,7 @@ type Resolver struct {
 	loopLabels []string
 	errors     []string
 
+	previous    *Scope
 	predeclared map[*ast.StructStatement]struct{}
 }
 
@@ -47,6 +48,19 @@ func New(program *ast.Program) *Resolver {
 	}
 }
 
+// NewContinuing resolves a program as a continuation of an earlier program's
+// top-level scope, as the REPL does between submissions. The earlier scope is
+// copied rather than changed, so it is still usable if this program fails.
+func NewContinuing(program *ast.Program, previous *Scope) *Resolver {
+	r := New(program)
+	if previous != nil {
+		r.previous = previous
+		r.universe = previous.parent
+		r.current = previous.parent
+	}
+	return r
+}
+
 // Resolve walks the program and returns its top-level scope. The scope's
 // parent is the universe scope holding the builtins.
 func (r *Resolver) Resolve() (*Scope, []string) {
@@ -58,6 +72,12 @@ func (r *Resolver) Resolve() (*Scope, []string) {
 	scope := r.enterScope(r.program)
 	defer r.exitScope()
 	r.program.Scope = scope
+	if r.previous != nil {
+		for _, sym := range r.previous.Symbols {
+			scope.Symbols = append(scope.Symbols, sym)
+			scope.byName[sym.name] = sym
+		}
+	}
 
 	r.predeclareStructs(r.program.Statements)
 	for _, stmt := range r.program.Statements {

@@ -15,8 +15,8 @@ func TestEvaluatedIntegersPreserveTheirTypes(t *testing.T) {
 		{`value: int8 := 1; value;`, types.Int8Type},
 		{`value: int32 := 1; value + 2;`, types.Int32Type},
 		{`value: uint64 := 18446744073709551615; value;`, types.UInt64Type},
-		{`value := 1; value;`, types.Int64Type},
-		{`1 + 2;`, types.Int64Type},
+		{`value := 1; value;`, types.IntType},
+		{`1 + 2;`, types.IntType},
 	}
 	for _, test := range tests {
 		integer, ok := testEval(test.input).(*object.Integer)

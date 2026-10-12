@@ -71,6 +71,34 @@ func TestBlockDeclarationsDoNotLeak(t *testing.T) {
 	}
 }
 
+func TestDeclarationsCarryAcrossSubmissions(t *testing.T) {
+	output := runREPL(strings.Join([]string{
+		`x: int32 := 40;`,
+		`struct Box { pub size: int32; }`,
+		`b := Box{size: 2};`,
+		`x + b.size`,
+	}, "\n"))
+
+	if !strings.Contains(output, "42\n") {
+		t.Fatalf("expected earlier declarations to be usable, got %q", output)
+	}
+}
+
+func TestFailedSubmissionDoesNotKeepItsDeclarations(t *testing.T) {
+	output := runREPL(strings.Join([]string{
+		`x := 1; y: int8 := 300;`,
+		`x := 5;`,
+		`x`,
+	}, "\n"))
+
+	if !strings.Contains(output, "integer constant 300 overflows int8") {
+		t.Fatalf("expected the overflow to be reported, got %q", output)
+	}
+	if strings.Contains(output, "already declared") || !strings.Contains(output, "5\n") {
+		t.Fatalf("expected x from the failed submission to be discarded, got %q", output)
+	}
+}
+
 func TestMutatingMethodRequiresMutableVariable(t *testing.T) {
 	immutable := runREPL("items := []int64{};\nitems.append(1);\n")
 	if !strings.Contains(immutable, "cannot call mutating method append on immutable variable: items") {

@@ -160,6 +160,7 @@ func (al *Array) Kind() Kind        { return KindArray }
 func (al *Array) Name() string {
 	return "[" + strconv.Itoa(al.length) + "]" + al.elementType.Name()
 }
+func (al *Array) IndexType() Type { return IntType }
 func NewArray(t Type, length int) *Array {
 	return &Array{elementType: t, length: length}
 }
@@ -176,7 +177,7 @@ func (sl *Slice) Kind() Kind        { return KindSlice }
 func (sl *Slice) Name() string {
 	return "[]" + sl.elementType.Name()
 }
-func (sl *Slice) IndexType() Type { return Int64Type }
+func (sl *Slice) IndexType() Type { return IntType }
 
 func NewSlice(t Type) *Slice {
 	return &Slice{elementType: t, length: 0}

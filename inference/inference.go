@@ -6,7 +6,6 @@ import (
 
 	"github.com/esweby/primordial_lang/ast"
 	"github.com/esweby/primordial_lang/resolver"
-	"github.com/esweby/primordial_lang/token"
 	"github.com/esweby/primordial_lang/types"
 )
 
@@ -283,49 +282,8 @@ func returnType(returns []types.Type) types.Type {
 
 func (in *Inferrer) errorAt(node ast.Node, format string, args ...any) {
 	msg := fmt.Sprintf(format, args...)
-	if tok := tokenOf(node); tok.Line > 0 {
+	if tok := ast.TokenOf(node); tok.Line > 0 {
 		msg = fmt.Sprintf("%d:%d: %s", tok.Line, tok.Column, msg)
 	}
 	in.errors = append(in.errors, msg)
-}
-
-func tokenOf(node ast.Node) token.Token {
-	switch n := node.(type) {
-	case *ast.IntegerLiteral:
-		return n.Token
-	case *ast.Identifier:
-		return n.Token
-	case *ast.PrefixExpression:
-		return n.Token
-	case *ast.InfixExpression:
-		return n.Token
-	case *ast.CallExpression:
-		return n.Token
-	case *ast.IfExpression:
-		return n.Token
-	case *ast.BlockExpression:
-		return n.Token
-	case *ast.ForLoop:
-		return n.Token
-	case *ast.IndexExpression:
-		return n.Token
-	case *ast.MemberExpression:
-		return n.Token
-	case *ast.StringLiteral:
-		return n.Token
-	case *ast.Boolean:
-		return n.Token
-	case *ast.ArrayLiteral:
-		return n.Token
-	case *ast.SliceLiteral:
-		return n.Token
-	case *ast.MapLiteral:
-		return n.Token
-	case *ast.StructLiteral:
-		return n.Token
-	case *ast.FunctionLiteral:
-		return n.Token
-	default:
-		return token.Token{}
-	}
 }

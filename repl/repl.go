@@ -7,9 +7,11 @@ import (
 	"strings"
 
 	"github.com/esweby/primordial_lang/evaluator"
+	"github.com/esweby/primordial_lang/inference"
 	"github.com/esweby/primordial_lang/lexer"
 	"github.com/esweby/primordial_lang/object"
 	"github.com/esweby/primordial_lang/parser"
+	"github.com/esweby/primordial_lang/resolver"
 	"github.com/esweby/primordial_lang/semantic"
 )
 
@@ -18,11 +20,17 @@ const (
 	CONTINUATION_PROMPT = ".. "
 )
 
+// session holds the state that carries over between submissions. It is only
+// updated when a submission passes every phase.
+type session struct {
+	scope *resolver.Scope
+	env   *object.Environment
+}
+
 func Start(in io.Reader, out io.Writer) {
 	scanner := bufio.NewScanner(in)
 	scanner.Buffer(make([]byte, 1024), 1024*1024)
-	symbols := semantic.NewSymbolTable()
-	env := object.NewEnvironment()
+	state := &session{env: object.NewEnvironment()}
 	var submission strings.Builder
 
 	for {
@@ -35,7 +43,7 @@ func Start(in io.Reader, out io.Writer) {
 		scanned := scanner.Scan()
 		if !scanned {
 			if strings.TrimSpace(submission.String()) != "" {
-				symbols = evaluateSubmission(submission.String(), out, symbols, env)
+				evaluateSubmission(submission.String(), out, state)
 			}
 			return
 		}
@@ -53,43 +61,44 @@ func Start(in io.Reader, out io.Writer) {
 			continue
 		}
 
-		symbols = evaluateSubmission(submission.String(), out, symbols, env)
+		evaluateSubmission(submission.String(), out, state)
 		submission.Reset()
 	}
 }
 
-func evaluateSubmission(
-	source string,
-	out io.Writer,
-	symbols *semantic.SymbolTable,
-	env *object.Environment,
-) *semantic.SymbolTable {
+func evaluateSubmission(source string, out io.Writer, state *session) {
 	l := lexer.New(source)
 	p := parser.New(l)
 	program := p.ParseProgram()
 
 	if len(p.Errors()) > 0 {
-		printParserErrors(out, p.Errors())
-		return symbols
+		printErrors(out, p.Errors())
+		return
 	}
 
-	sa := semantic.NewSemanticAnalyzer(program, symbols)
-	saErrs := sa.Analyze()
-
-	if len(saErrs) > 0 {
-		printSaErrors(out, saErrs)
-		return symbols
+	scope, resolveErrs := resolver.NewContinuing(program, state.scope).Resolve()
+	if len(resolveErrs) > 0 {
+		printErrors(out, resolveErrs)
+		return
 	}
 
-	symbols = sa.Symbols()
-	evaluator := evaluator.New(program, env)
+	if inferErrs := inference.New(program).Infer(); len(inferErrs) > 0 {
+		printErrors(out, inferErrs)
+		return
+	}
+
+	if analyzeErrs := semantic.New(program).Analyze(); len(analyzeErrs) > 0 {
+		printErrors(out, analyzeErrs)
+		return
+	}
+
+	state.scope = scope
+	evaluator := evaluator.New(program, state.env)
 	evaluated := evaluator.Evaluate()
 	if evaluated != nil {
 		io.WriteString(out, evaluated.Inspect())
 		io.WriteString(out, "\n")
 	}
-
-	return symbols
 }
 
 func submissionComplete(source string) bool {
@@ -127,14 +136,8 @@ func matchingDelimiter(open, close byte) bool {
 		open == '[' && close == ']'
 }
 
-func printParserErrors(out io.Writer, errors []string) {
+func printErrors(out io.Writer, errors []string) {
 	for _, msg := range errors {
 		io.WriteString(out, "\t"+msg+"\n")
-	}
-}
-
-func printSaErrors(out io.Writer, errors []error) {
-	for _, msg := range errors {
-		io.WriteString(out, "\t"+msg.Error()+"\n")
 	}
 }

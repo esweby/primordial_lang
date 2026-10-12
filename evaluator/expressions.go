@@ -520,7 +520,7 @@ func (e *Evaluator) iterableToElements(obj object.Object) []object.Object {
 		elements := make([]object.Object, len(o.Elements))
 		for i, val := range o.Elements {
 			elements[i] = &object.Tuple{
-				Elements: []object.Object{newIntegerObject(big.NewInt(int64(i)), types.Int64Type), val},
+				Elements: []object.Object{newIntegerObject(big.NewInt(int64(i)), types.IntType), val},
 			}
 		}
 		return elements
@@ -528,7 +528,7 @@ func (e *Evaluator) iterableToElements(obj object.Object) []object.Object {
 		elements := make([]object.Object, len(o.Elements))
 		for i, val := range o.Elements {
 			elements[i] = &object.Tuple{
-				Elements: []object.Object{newIntegerObject(big.NewInt(int64(i)), types.Int64Type), val},
+				Elements: []object.Object{newIntegerObject(big.NewInt(int64(i)), types.IntType), val},
 			}
 		}
 		return elements
@@ -556,7 +556,7 @@ func (e *Evaluator) iterableToElements(obj object.Object) []object.Object {
 		for i, r := range runes {
 			elements[i] = &object.Tuple{
 				Elements: []object.Object{
-					newIntegerObject(big.NewInt(int64(i)), types.Int64Type),
+					newIntegerObject(big.NewInt(int64(i)), types.IntType),
 					&object.String{Value: string(r)},
 				},
 			}

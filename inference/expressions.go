@@ -188,8 +188,12 @@ func (in *Inferrer) inferCallExpression(e *ast.CallExpression) types.Type {
 	} else {
 		callee := in.inferExpression(e.Function, nil)
 		if callee == types.FunctionType {
-			// A value annotated `function` has no known signature.
-			in.inferArguments(e.Arguments, nil)
+			// A value annotated `function` has no known signature, so untyped
+			// constant arguments stay untyped and take the parameter's type
+			// when the function is called.
+			for _, arg := range e.Arguments {
+				in.inferExpression(arg, nil)
+			}
 			return types.FunctionType
 		}
 		if signature, ok := underlying(callee).(*types.Function); ok {
@@ -383,7 +387,8 @@ func (in *Inferrer) unify(values []branch, what string) types.Type {
 	}
 	if target == nil {
 		for _, v := range values {
-			if v.typ != nil && !types.IsInvalid(v.typ) && !types.IsUntypedInteger(v.typ) {
+			// A branch without a value is reported by the analyzer.
+			if v.typ != nil && !types.IsInvalid(v.typ) && !types.IsUntypedInteger(v.typ) && !types.IsVoid(v.typ) {
 				target = v.typ
 				break
 			}
