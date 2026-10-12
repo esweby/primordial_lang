@@ -231,22 +231,6 @@ A function can be assigned to a variable
 add := fn(x int32, y int32): Result<int32, error> { return x + y; }
 ```
 
-#### Function Types
-
-A function's signature can be written as a type, so function values passed as arguments, returned from functions or stored in variables keep their parameter and return types.
-
-```
-fn apply(f fn(int64): int64, value int64): int64 { return f(value); }
-
-newAdder := fn(x int64): fn(int64): int64 {
-    return fn(y int64): int64 { return x + y; };
-};
-```
-
-1. A signature with no return type is written without one: `fn(string)`
-2. Several return types are wrapped in parentheses: `fn(int64): (int32, bool)`. This keeps a signature inside a parameter or return list unambiguous
-3. The `function` type accepts any function, but calls through it have no known signature. Prefer a signature type where one is known
-
 #### Returning Tuples
 
 This is done simply with the following example. Note: pub could be omitted if you did not want these values to be made public.

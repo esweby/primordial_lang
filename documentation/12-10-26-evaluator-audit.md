@@ -10,9 +10,7 @@ With the resolver, inference and analyzer in place, a program only reaches the e
 1. **Calling a `function`-typed value.** This is the one place an untyped integer can still reach runtime, because a value annotated `function` has no signature to type its arguments from. Once coercion is removed, nothing would fit `addFive(5)`'s `5` to the real parameter type. Options:
    - **Make it a compile error (recommended).** Now that signature types exist, calling a `function` value would require giving it a signature, e.g. `addFive: fn(int64): int64`. `function` stays as a type for storing and passing functions, but not calling them. Every call is then checked, which is what lets the evaluator trust the program.
    - **Default the arguments to `int`.** This is consistent with the default rule, but the call stays unchecked, so the evaluator would need a runtime argument check just for this case.
-2. **Integer overflow at runtime.** Today, arithmetic that exceeds its type (`value: int8 := 127; value + 1`) and converting a non-constant value that doesn't fit (`uint8(x)` with `x` = 256) are runtime errors. Go instead wraps silently: `int8` 127 + 1 is -128, and `uint8(256)` is 0. Either is consistent with typed integers. Options:
-   - **Keep the errors (recommended).** Safer and already implemented. This departs from Go, but only at runtime, and only where Go would silently produce a surprising value.
-   - **Wrap like Go.** Matches Go exactly, but overflow bugs pass silently.
+2. **Integer overflow at runtime traps.** Decided: arithmetic that exceeds its type (`value: int8 := 127; value + 1`) and converting a non-constant value that doesn't fit (`uint8(x)` with `x` = 256) stop the program with an error, like Swift, Zig's safe builds and Rust in debug builds. This departs from Go, which wraps silently. The evaluator already behaves this way, so nothing changes. The README documents it.
 
 The specification already decides one runtime behaviour: reading a missing map key is an error ("If you try to access a property by an unset key you will recieve an undefined error"), unlike Go's zero value. That stays.
 
@@ -25,8 +23,8 @@ The specification already decides one runtime behaviour: reading a missing map k
 | Array and slice index out of bounds, or outside the supported range | expressions.go:187–209 |
 | Missing map key | expressions.go:230 |
 | Division by a zero value | expressions.go:656 |
-| Integer overflow in arithmetic and negation | `checkedIntegerResult`, evaluator.go:159 (subject to decision 2) |
-| Converting a non-constant value that doesn't fit | expressions.go:706 (subject to decision 2) |
+| Integer overflow in arithmetic and negation | `checkedIntegerResult`, evaluator.go:159 (traps, decision 2) |
+| Converting a non-constant value that doesn't fit | expressions.go:706 (traps, decision 2) |
 
 ### Remove: integer coercion
 
@@ -76,13 +74,13 @@ Where a check guards something that cannot happen, the code can either drop it o
 | `TestIfElseExpr` case `if (1) { 10 }` | Delete; the analyzer covers it |
 | `TestEvalRejectsInvalidStructFieldAccess` | Delete; the analyzer covers private reads and writes |
 | `TestFunctionClosures` first case (calls through `function`) | Rewrite with a signature type, or expect the compile error, depending on decision 1 |
-| `TestCheckedIntegerOverflow`, `TestCheckedRuntimeIntegerConversion` | Keep if decision 2 keeps errors; otherwise change to expect wrapped values |
+| `TestCheckedIntegerOverflow`, `TestCheckedRuntimeIntegerConversion` | Keep; they check the trapping behaviour from decision 2 |
 | Everything else | Keep, running through the checked `testEval` |
 
 ## Order of work
 
-1. Settle the two decisions.
+1. Settle decision 1.
 2. Make `testEval` fail on phase errors and delete or rewrite the tests listed above.
 3. Remove integer coercion.
 4. Remove the checks guaranteed by earlier phases, and the dead code.
-5. Apply decision 1 in inference or the analyzer, and decision 2 in the evaluator if it changes.
+5. Apply decision 1 in inference or the analyzer.
