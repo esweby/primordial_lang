@@ -20,9 +20,8 @@ var rawString = regexp.MustCompile("`([^`]*)`")
 // TestInfer_MatchesSemanticCorpus infers every program in the semantic and
 // evaluator test files that passes semantic analysis. Each must infer without
 // errors and give every declaration the same type semantic does, except that
-// untyped integers now default to int where semantic used int64, and function
-// literals get their full signature where semantic used the generic function
-// type.
+// function literals get their full signature where semantic used the generic
+// function type.
 func TestInfer_MatchesSemanticCorpus(t *testing.T) {
 	files, err := filepath.Glob("../semantic/*_test.go")
 	if err != nil {
@@ -34,7 +33,7 @@ func TestInfer_MatchesSemanticCorpus(t *testing.T) {
 	}
 	files = append(files, evaluatorFiles...)
 
-	checked, defaultChanges, signatures := 0, 0, 0
+	checked, signatures := 0, 0
 	for _, file := range files {
 		src, err := os.ReadFile(file)
 		if err != nil {
@@ -67,8 +66,6 @@ func TestInfer_MatchesSemanticCorpus(t *testing.T) {
 				wantType, gotType := typeName(want[i]), typeName(got[i])
 				switch {
 				case wantType == gotType:
-				case wantType == "int64" && gotType == "int":
-					defaultChanges++
 				case want[i].Type == types.FunctionType && types.IsFunction(got[i].Type):
 					signatures++
 				default:
@@ -81,8 +78,7 @@ func TestInfer_MatchesSemanticCorpus(t *testing.T) {
 	if checked == 0 {
 		t.Fatal("no programs found in the corpus")
 	}
-	t.Logf("inferred %d programs; %d declarations default to int where semantic used int64; %d function literals have full signatures",
-		checked, defaultChanges, signatures)
+	t.Logf("inferred %d programs; %d function literals have full signatures", checked, signatures)
 }
 
 func parse(input string) (*ast.Program, bool) {

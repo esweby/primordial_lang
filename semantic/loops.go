@@ -142,10 +142,10 @@ func (sa *SemanticAnalyzer) analyzeRangeCondition(forExpr *ast.ForLoop) bool {
 	var firstType, valueType types.Type
 	switch t := iterType.(type) {
 	case *types.Array:
-		firstType = types.Int64Type
+		firstType = types.IntType
 		valueType = t.ElementType()
 	case *types.Slice:
-		firstType = types.Int64Type
+		firstType = types.IntType
 		valueType = t.ElementType()
 	case *types.Map:
 		firstType = t.Key

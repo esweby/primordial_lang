@@ -21,13 +21,13 @@ func (e *Evaluator) evalMemberProperty(
 	case *object.Array:
 		switch exp.Name.Value {
 		case "length":
-			return newIntegerObject(big.NewInt(int64(len(receiver.Elements))), types.Int64Type)
+			return newIntegerObject(big.NewInt(int64(len(receiver.Elements))), types.IntType)
 		}
 
 	case *object.Slice:
 		switch exp.Name.Value {
 		case "length":
-			return newIntegerObject(big.NewInt(int64(len(receiver.Elements))), types.Int64Type)
+			return newIntegerObject(big.NewInt(int64(len(receiver.Elements))), types.IntType)
 		}
 	case *object.Struct:
 		value, ok := receiver.Fields[exp.Name.Value]

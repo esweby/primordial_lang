@@ -63,14 +63,14 @@ func TestIntegerLiteralUsesContextSymmetrically(t *testing.T) {
 	}
 }
 
-func TestContextFreeIntegerDefaultsToInt64(t *testing.T) {
+func TestContextFreeIntegerDefaultsToInt(t *testing.T) {
 	analyzer, errors := analyzeProgram(t, `value := 1 + 2;`)
 	if len(errors) != 0 {
 		t.Fatalf("expected default integer materialization, got %v", errors)
 	}
 	symbol, _ := analyzer.Symbols().Get("value")
-	if !types.IsTypesEqual(symbol.Type(), types.Int64Type) {
-		t.Fatalf("expected int64 default, got %s", symbol.Type().Name())
+	if !types.IsTypesEqual(symbol.Type(), types.IntType) {
+		t.Fatalf("expected int default, got %s", symbol.Type().Name())
 	}
 }
 

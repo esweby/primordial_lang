@@ -114,10 +114,10 @@ func (sa *SemanticAnalyzer) defaultInteger(expression ast.Expression, actual typ
 	if !types.IsUntypedInteger(actual) {
 		return actual, nil
 	}
-	if err := coerceIntegerConstant(expression, types.Int64Type); err != nil {
+	if err := coerceIntegerConstant(expression, types.DefaultIntegerType); err != nil {
 		return types.InvalidType, err
 	}
-	return types.Int64Type, nil
+	return types.DefaultIntegerType, nil
 }
 
 func (sa *SemanticAnalyzer) resolveIntegerOperands(

@@ -19,8 +19,8 @@ func TestSliceMembers(t *testing.T) {
 		if len(member.Parameters) != 0 {
 			t.Fatalf("expected length to have no parameters, got %d", len(member.Parameters))
 		}
-		if len(member.ReturnTypes) != 1 || !IsTypesEqual(member.ReturnTypes[0], Int64Type) {
-			t.Fatalf("expected length to have type int64, got %v", member.ReturnTypes)
+		if len(member.ReturnTypes) != 1 || !IsTypesEqual(member.ReturnTypes[0], IntType) {
+			t.Fatalf("expected length to have type int, got %v", member.ReturnTypes)
 		}
 		if member.MutatesReceiver {
 			t.Fatal("expected length not to mutate its receiver")
@@ -70,8 +70,8 @@ func TestArrayMembers(t *testing.T) {
 		if member.Kind != MemberProperty {
 			t.Fatalf("expected length to be a property, got %v", member.Kind)
 		}
-		if len(member.ReturnTypes) != 1 || !IsTypesEqual(member.ReturnTypes[0], Int64Type) {
-			t.Fatalf("expected length to have type int64, got %v", member.ReturnTypes)
+		if len(member.ReturnTypes) != 1 || !IsTypesEqual(member.ReturnTypes[0], IntType) {
+			t.Fatalf("expected length to have type int, got %v", member.ReturnTypes)
 		}
 		if member.MutatesReceiver {
 			t.Fatal("expected length not to mutate its receiver")

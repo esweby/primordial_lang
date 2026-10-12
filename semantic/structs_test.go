@@ -94,7 +94,7 @@ func TestInferStructFieldTypesFromDefaults(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected StructStatement, got %T", program.Statements[1])
 	}
-	expectedTypes := []string{"string", "int64", "bool", "Address", "[]string", "int32"}
+	expectedTypes := []string{"string", "int", "bool", "Address", "[]string", "int32"}
 	for i, expected := range expectedTypes {
 		field := declaration.Fields[i]
 		if field.GetType() == nil || field.GetType().Name() != expected {

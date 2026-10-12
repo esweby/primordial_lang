@@ -223,7 +223,7 @@ func TestForLoops(t *testing.T) {
 			name: "range over array",
 			input: `
 				arr := [3]int64{10, 20, 30};
-				sum := 0;
+				sum: int64 := 0;
 				for i, val := range arr {
 					sum = sum + val;
 				}
@@ -235,7 +235,7 @@ func TestForLoops(t *testing.T) {
 			name: "range over slice",
 			input: `
 				slice := []int64{1, 2, 3, 4};
-				sum := 0;
+				sum: int64 := 0;
 				for _, val := range slice {
 					sum = sum + val;
 				}

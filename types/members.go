@@ -31,7 +31,7 @@ func (s *Slice) LookupMember(name string) (MemberDefinition, bool) {
 		return MemberDefinition{
 			Name:        "length",
 			Kind:        MemberProperty,
-			ReturnTypes: []Type{Int64Type},
+			ReturnTypes: []Type{IntType},
 		}, true
 
 	case "append":
@@ -54,7 +54,7 @@ func (al *Array) LookupMember(name string) (MemberDefinition, bool) {
 		return MemberDefinition{
 			Name:        "length",
 			Kind:        MemberProperty,
-			ReturnTypes: []Type{Int64Type},
+			ReturnTypes: []Type{IntType},
 		}, true
 
 	case "toSlice":

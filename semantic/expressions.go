@@ -466,7 +466,7 @@ func (sa *SemanticAnalyzer) analyzeLenCall(args []ast.Expression) types.Type {
 	argumentType := sa.analyzeExpression(args[0])
 	switch argumentType.Kind() {
 	case types.KindArray, types.KindSlice, types.KindString:
-		return types.Int64Type
+		return types.IntType
 	default:
 		sa.error(fmt.Sprintf("argument to len not supported, got %s", argumentType.Name()))
 		return types.InvalidType

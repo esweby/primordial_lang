@@ -16,13 +16,13 @@ func TestAnalyzeMemberPropertyTypes(t *testing.T) {
 			name:         "array length",
 			input:        `result := [3]int32{}.length;`,
 			symbol:       "result",
-			expectedType: "int64",
+			expectedType: "int",
 		},
 		{
 			name:         "slice length",
 			input:        `result := []int32{}.length;`,
 			symbol:       "result",
-			expectedType: "int64",
+			expectedType: "int",
 		},
 	}
 
@@ -65,7 +65,7 @@ func TestAnalyzeCollectionMemberMethods(t *testing.T) {
 			name:         "returned slice property",
 			input:        `result := [3]int32{}.toSlice().length;`,
 			symbol:       "result",
-			expectedType: "int64",
+			expectedType: "int",
 		},
 	}
 
@@ -100,7 +100,7 @@ func TestRejectInvalidMemberUsage(t *testing.T) {
 		{
 			name:            "member on scalar",
 			input:           `1.length;`,
-			expectedMessage: "type int64 has no members",
+			expectedMessage: "type int has no members",
 		},
 		{
 			name:            "unknown slice member",
