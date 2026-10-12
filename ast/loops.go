@@ -12,6 +12,7 @@ type ForLoop struct {
 	Label      *Identifier
 	Controller ForController
 	Body       *BlockExpression
+	Scope      Scope // set by the resolver; shared with Body
 }
 
 func (fl *ForLoop) expressionNode() {}

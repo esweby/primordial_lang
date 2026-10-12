@@ -34,6 +34,7 @@ type Assignable interface {
 
 type Program struct {
 	Statements []Statement
+	Scope      Scope // set by the resolver
 }
 
 func (p *Program) TokenLiteral() string {
