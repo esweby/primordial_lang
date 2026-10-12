@@ -2,7 +2,6 @@ package evaluator
 
 import (
 	"math/big"
-	"strings"
 	"testing"
 
 	"github.com/esweby/primordial_lang/object"
@@ -20,7 +19,7 @@ func TestMemberLength(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		evaluated := testEval(tt.input)
+		evaluated := testEval(t, tt.input)
 
 		res, ok := evaluated.(*object.Integer)
 		if !ok {
@@ -34,7 +33,7 @@ func TestMemberLength(t *testing.T) {
 }
 
 func TestEvalStructTypeFunctionsAndMethods(t *testing.T) {
-	evaluated := testEval(`
+	evaluated := testEval(t, `
 		struct Person {
 			name: string;
 			pub age: int32;
@@ -71,7 +70,7 @@ func TestEvalStructTypeFunctionsAndMethods(t *testing.T) {
 }
 
 func TestEvalStructMethodReadsPrivateFields(t *testing.T) {
-	evaluated := testEval(`
+	evaluated := testEval(t, `
 		struct Person {
 			name: string;
 			fn new(name string): Person { return Person{name}; }
@@ -89,7 +88,7 @@ func TestEvalStructMethodReadsPrivateFields(t *testing.T) {
 }
 
 func TestEvalNestedStructMethodMutation(t *testing.T) {
-	evaluated := testEval(`
+	evaluated := testEval(t, `
 		struct Address {
 			pub city: string;
 			impl { fn setCity(city string) { self.city = city; } }
@@ -107,7 +106,7 @@ func TestEvalNestedStructMethodMutation(t *testing.T) {
 }
 
 func TestEvalStructMethodMayAssignItsField(t *testing.T) {
-	evaluated := testEval(`
+	evaluated := testEval(t, `
 		struct Person {
 			pub name: string;
 			fn new(): Person { return Person{name: ""}; }
@@ -126,37 +125,8 @@ func TestEvalStructMethodMayAssignItsField(t *testing.T) {
 	}
 }
 
-func TestEvalRejectsInvalidStructFieldAccess(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    string
-		expected string
-	}{
-		{
-			name:     "private read",
-			input:    `struct Person { name: string; } person := Person{name: "Ada"}; person.name;`,
-			expected: "field Person.name is private",
-		},
-		{
-			name:     "private write",
-			input:    `struct Person { name: string; } person := Person{name: "Ada"}; person.name = "Grace";`,
-			expected: "field Person.name is private",
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			evaluated := testEval(test.input)
-			err, ok := evaluated.(*object.Error)
-			if !ok || !strings.Contains(err.Message, test.expected) {
-				t.Fatalf("expected error containing %q, got %T (%v)", test.expected, evaluated, evaluated)
-			}
-		})
-	}
-}
-
 func TestEvalAssignsPublicFieldFromOutside(t *testing.T) {
-	evaluated := testEval(`struct Person { pub name: string; } person := Person{name: "Ada"}; person.name = "Grace"; person.name`)
+	evaluated := testEval(t, `struct Person { pub name: string; } person := Person{name: "Ada"}; person.name = "Grace"; person.name`)
 	str, ok := evaluated.(*object.String)
 	if !ok || str.Value != "Grace" {
 		t.Fatalf("expected Grace, got %T (%v)", evaluated, evaluated)
@@ -172,7 +142,7 @@ func TestMemberSliceAppend(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		evaluated := testEval(tt.input)
+		evaluated := testEval(t, tt.input)
 
 		res, ok := evaluated.(*object.Slice)
 		if !ok {

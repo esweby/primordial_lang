@@ -187,15 +187,6 @@ func (in *Inferrer) inferCallExpression(e *ast.CallExpression) types.Type {
 		}
 	} else {
 		callee := in.inferExpression(e.Function, nil)
-		if callee == types.FunctionType {
-			// A value annotated `function` has no known signature, so untyped
-			// constant arguments stay untyped and take the parameter's type
-			// when the function is called.
-			for _, arg := range e.Arguments {
-				in.inferExpression(arg, nil)
-			}
-			return types.FunctionType
-		}
 		if signature, ok := underlying(callee).(*types.Function); ok {
 			params, returns, callable = signature.ParamTypes, signature.ReturnTypes, true
 		}

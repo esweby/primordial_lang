@@ -5,11 +5,9 @@ With the resolver, inference and analyzer in place, a program only reaches the e
 1. **The evaluator trusts the checked program.** It behaves like a compiler backend: it does not re-check anything the earlier phases guarantee.
 2. **Runtime integer coercion is removed.** Every integer has its type fixed at compile time, so fitting an untyped value to its destination at runtime goes against the language's integer rules. Function signature types (`fn(int64): int64`) were added first so calls through function values are typed at compile time.
 
-## Decisions needed
+## Decisions
 
-1. **Calling a `function`-typed value.** This is the one place an untyped integer can still reach runtime, because a value annotated `function` has no signature to type its arguments from. Once coercion is removed, nothing would fit `addFive(5)`'s `5` to the real parameter type. Options:
-   - **Make it a compile error (recommended).** Now that signature types exist, calling a `function` value would require giving it a signature, e.g. `addFive: fn(int64): int64`. `function` stays as a type for storing and passing functions, but not calling them. Every call is then checked, which is what lets the evaluator trust the program.
-   - **Default the arguments to `int`.** This is consistent with the default rule, but the call stays unchecked, so the evaluator would need a runtime argument check just for this case.
+1. **Calling a `function`-typed value is a compile error.** Decided: a value annotated `function` has no signature to type its arguments from, so the analyzer rejects calls through it and asks for a signature type such as `fn(int64): int64`. `function` stays as a type for storing and passing functions. Every call is now checked, so no untyped integer reaches runtime.
 2. **Integer overflow at runtime traps.** Decided: arithmetic that exceeds its type (`value: int8 := 127; value + 1`) and converting a non-constant value that doesn't fit (`uint8(x)` with `x` = 256) stop the program with an error, like Swift, Zig's safe builds and Rust in debug builds. This departs from Go, which wraps silently. The evaluator already behaves this way, so nothing changes. The README documents it.
 
 The specification already decides one runtime behaviour: reading a missing map key is an error ("If you try to access a property by an unset key you will recieve an undefined error"), unlike Go's zero value. That stays.
@@ -73,14 +71,12 @@ Where a check guards something that cannot happen, the code can either drop it o
 | `TestForLoops` cases for `break`/`continue` outside a loop and unknown labels | Delete; the resolver tests cover them |
 | `TestIfElseExpr` case `if (1) { 10 }` | Delete; the analyzer covers it |
 | `TestEvalRejectsInvalidStructFieldAccess` | Delete; the analyzer covers private reads and writes |
-| `TestFunctionClosures` first case (calls through `function`) | Rewrite with a signature type, or expect the compile error, depending on decision 1 |
+| `TestFunctionClosures` first case (calls through `function`) | Delete; a signature-typed closure case replaces it and the analyzer tests the compile error |
 | `TestCheckedIntegerOverflow`, `TestCheckedRuntimeIntegerConversion` | Keep; they check the trapping behaviour from decision 2 |
 | Everything else | Keep, running through the checked `testEval` |
 
 ## Order of work
 
-1. Settle decision 1.
-2. Make `testEval` fail on phase errors and delete or rewrite the tests listed above.
-3. Remove integer coercion.
-4. Remove the checks guaranteed by earlier phases, and the dead code.
-5. Apply decision 1 in inference or the analyzer.
+1. Make `testEval` fail on phase errors and delete or rewrite the tests listed above.
+2. Remove integer coercion.
+3. Remove the checks guaranteed by earlier phases, and the dead code.

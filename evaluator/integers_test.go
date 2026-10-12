@@ -19,7 +19,7 @@ func TestEvaluatedIntegersPreserveTheirTypes(t *testing.T) {
 		{`1 + 2;`, types.IntType},
 	}
 	for _, test := range tests {
-		integer, ok := testEval(test.input).(*object.Integer)
+		integer, ok := testEval(t, test.input).(*object.Integer)
 		if !ok {
 			t.Fatalf("expected integer for %q", test.input)
 		}
@@ -40,9 +40,9 @@ func TestCheckedIntegerOverflow(t *testing.T) {
 	}
 	for _, input := range tests {
 		t.Run(input, func(t *testing.T) {
-			errorObject, ok := testEval(input).(*object.Error)
+			errorObject, ok := testEval(t, input).(*object.Error)
 			if !ok {
-				t.Fatalf("expected overflow error, got %T", testEval(input))
+				t.Fatalf("expected overflow error, got %T", testEval(t, input))
 			}
 			if errorObject.Message == "" {
 				t.Fatal("expected overflow message")
@@ -52,20 +52,20 @@ func TestCheckedIntegerOverflow(t *testing.T) {
 }
 
 func TestCheckedRuntimeIntegerConversion(t *testing.T) {
-	converted := testEval(`value: int64 := 255; uint8(value);`)
+	converted := testEval(t, `value: int64 := 255; uint8(value);`)
 	integer, ok := converted.(*object.Integer)
 	if !ok || !types.IsTypesEqual(integer.IntegerType, types.UInt8Type) {
 		t.Fatalf("expected uint8 conversion, got %#v", converted)
 	}
 
-	overflow := testEval(`value: int64 := 256; uint8(value);`)
+	overflow := testEval(t, `value: int64 := 256; uint8(value);`)
 	if _, ok := overflow.(*object.Error); !ok {
 		t.Fatalf("expected conversion overflow, got %#v", overflow)
 	}
 }
 
 func TestArrayNeutralIntegersPreserveElementType(t *testing.T) {
-	array, ok := testEval(`[2]uint16{};`).(*object.Array)
+	array, ok := testEval(t, `[2]uint16{};`).(*object.Array)
 	if !ok {
 		t.Fatal("expected array")
 	}

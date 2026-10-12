@@ -18,7 +18,7 @@ func TestFunctionLiteral(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		evaluated := testEval(tt.input)
+		evaluated := testEval(t, tt.input)
 		testFunction(t, evaluated, i, tt.numParams, tt.numReturn)
 	}
 }
@@ -46,7 +46,7 @@ func TestEvalIntegerExpr(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		evaluated := testEval(tt.input)
+		evaluated := testEval(t, tt.input)
 		testIntegerObject(t, evaluated, tt.expected)
 	}
 }
@@ -79,7 +79,7 @@ func TestEvalBooleanExpr(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		evaluated := testEval(tt.input)
+		evaluated := testEval(t, tt.input)
 		testBooleanObject(t, i, evaluated, tt.expected)
 	}
 }
@@ -91,7 +91,6 @@ func TestIfElseExpr(t *testing.T) {
 	}{
 		{"if (true) { 10 }", 10},
 		{"if (false) { 10 }", nil},
-		{"if (1) { 10 }", 10},
 		{"if (1 < 2) { 10 }", 10},
 		{"if (1 > 2) { 10 }", nil},
 		{"if (1 > 2) { 10 } else { 20 }", 20},
@@ -100,7 +99,7 @@ func TestIfElseExpr(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		evaluated := testEval(tt.input)
+		evaluated := testEval(t, tt.input)
 		integer, ok := tt.expected.(int)
 		if ok {
 			testIntegerObject(t, evaluated, int64(integer))
@@ -126,7 +125,7 @@ func TestArrayOperatorExpressions(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		evaluated := testEval(tt.input)
+		evaluated := testEval(t, tt.input)
 		integer, ok := tt.expected.(int)
 		if ok {
 			testIntegerObject(t, evaluated, int64(integer))
@@ -152,7 +151,7 @@ func TestSliceOperatorExpressions(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		evaluated := testEval(tt.input)
+		evaluated := testEval(t, tt.input)
 		integer, ok := tt.expected.(int)
 		if ok {
 			testIntegerObject(t, evaluated, int64(integer))
@@ -172,7 +171,7 @@ func TestArrayLiterals(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		evaluated := testEval(tt.input)
+		evaluated := testEval(t, tt.input)
 		result, ok := evaluated.(*object.Array)
 		if !ok {
 			t.Errorf("test %d: expected object.Array, got=%T", i, evaluated)
@@ -201,7 +200,7 @@ func TestArrayLiteralEmptyStrings(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		evaluated := testEval(tt.input)
+		evaluated := testEval(t, tt.input)
 		result, ok := evaluated.(*object.Array)
 		if !ok {
 			t.Errorf("test %d: expected object.Array, got=%T", i, evaluated)
@@ -233,7 +232,7 @@ func TestSliceLiterals(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		evaluated := testEval(tt.input)
+		evaluated := testEval(t, tt.input)
 		result, ok := evaluated.(*object.Slice)
 		if !ok {
 			t.Errorf("test %d: expected object.Slice, got=%T", i, evaluated)
@@ -264,7 +263,7 @@ func TestMapLiterals(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		evaluated := testEval(tt.input)
+		evaluated := testEval(t, tt.input)
 		m, ok := evaluated.(*object.Map)
 		if !ok {
 			t.Fatalf("test %d: expected object.Map, got=%T", i, evaluated)
@@ -303,7 +302,7 @@ func TestAccessMapLiterals(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		evaluated := testEval(tt.input)
+		evaluated := testEval(t, tt.input)
 		str, ok := evaluated.(*object.String)
 		if !ok {
 			t.Fatalf("test %d: expected object.String, got %T (%+v)", i, evaluated, evaluated)

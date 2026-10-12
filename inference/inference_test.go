@@ -163,16 +163,6 @@ func TestInfer_EveryLiteralGetsAConcreteType(t *testing.T) {
 	}
 }
 
-func TestInfer_ArgumentsToAnUnknownSignatureStayUntyped(t *testing.T) {
-	program, _ := parseAndInferProgram(t, `f: function := fn(x int64): int64 { return x; }; g := fn(h function) { h(5); };`)
-
-	g := program.Statements[1].(*ast.DeclareStatement).Value.(*ast.FunctionLiteral)
-	call := g.Body.Statements[0].(*ast.ExpressionStatement).Expression.(*ast.CallExpression)
-	if !types.IsUntypedInteger(call.Arguments[0].(*ast.IntegerLiteral).GetResolvedType()) {
-		t.Fatalf("expected the argument to stay untyped, got %v", call.Arguments[0].(*ast.IntegerLiteral).GetResolvedType())
-	}
-}
-
 func TestInfer_RangeVariables(t *testing.T) {
 	program, _ := parseAndInferProgram(t, `for i, v := range []int32{1} {} for k, v := range map[string]uint8{} {} for kv := range []bool{} {}`)
 

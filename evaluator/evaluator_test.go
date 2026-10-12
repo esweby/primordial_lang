@@ -18,11 +18,11 @@ func TestFunctionCall(t *testing.T) {
 		output int64
 	}{
 		{`identity := fn(): int64 { return 4000; } identity()`, 4000},
-		{`fn add(x int32, y int32): int32 { return x + y; }; add(5, 5);`, 10},
+		{`fn add(x int32, y int32): int32 { return x + y; } add(5, 5);`, 10},
 	}
 
 	for _, tt := range tests {
-		testIntegerObject(t, testEval(tt.input), tt.output)
+		testIntegerObject(t, testEval(t, tt.input), tt.output)
 	}
 }
 
@@ -37,7 +37,7 @@ func TestFunctionTupleReturn(t *testing.T) {
 			`
 				fn values(): int32, bool {
 					return 10, true;
-				};
+				}
 
 				values();
 			`,
@@ -64,7 +64,7 @@ func TestFunctionTupleReturn(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		evaluated := testEval(tt.input)
+		evaluated := testEval(t, tt.input)
 		tuple, ok := evaluated.(*object.Tuple)
 		if !ok {
 			t.Fatalf(
@@ -93,15 +93,6 @@ func TestFunctionClosures(t *testing.T) {
 		output int64
 	}{
 		{`
-			newAdder := fn(x int64): function {
-				return fn(y int64): int64 {
-					return x + y;
-				};
-			};
-			addFive := newAdder(5);
-			addFive(5);
-		`, 10},
-		{`
 			newAdder := fn(x int64): fn(int64): int64 {
 				return fn(y int64): int64 {
 					return x + y;
@@ -117,14 +108,14 @@ func TestFunctionClosures(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		testIntegerObject(t, testEval(tt.input), tt.output)
+		testIntegerObject(t, testEval(t, tt.input), tt.output)
 	}
 }
 
 func TestStringLiteral(t *testing.T) {
 	input := `"Hello world";`
 
-	evaluated := testEval(input)
+	evaluated := testEval(t, input)
 	str, ok := evaluated.(*object.String)
 	if !ok {
 		t.Fatalf("expected string object. Got=%T (%+v)", evaluated, evaluated)
@@ -138,7 +129,7 @@ func TestStringLiteral(t *testing.T) {
 func TestStringConcatonation(t *testing.T) {
 	input := `"Hello" + " " + "world";`
 
-	evaluated := testEval(input)
+	evaluated := testEval(t, input)
 	str, ok := evaluated.(*object.String)
 	if !ok {
 		t.Fatalf("expected string object. Got=%T (%+v)", evaluated, evaluated)
@@ -146,34 +137,6 @@ func TestStringConcatonation(t *testing.T) {
 
 	if str.Value != "Hello world" {
 		t.Fatalf("expected string value to be Hello world. Got=%s", str.Value)
-	}
-}
-
-func TestErrorHandling(t *testing.T) {
-	tests := []struct {
-		input   string
-		message string
-	}{
-		{`5 + true;`, "type mismatch: INTEGER + BOOLEAN"},
-		{`5 + true; 5;`, "type mismatch: INTEGER + BOOLEAN"},
-		{"-true", "unknown operator: -BOOLEAN"},
-		{"true + false", "unknown operator: BOOLEAN + BOOLEAN"},
-		{"5; true + false; 5", "unknown operator: BOOLEAN + BOOLEAN"},
-		{"foobar;", "identifier not found: foobar"},
-	}
-
-	for i, tt := range tests {
-		evaluated := testEval(tt.input)
-		errObj, ok := evaluated.(*object.Error)
-
-		if !ok {
-			t.Errorf("test %d: no error object returned. Got=%T(%+v)", i, evaluated, evaluated)
-			continue
-		}
-
-		if errObj.Message != tt.message {
-			t.Errorf("test %d: wrong error message. expected=%s. got=%s", i, tt.message, errObj.Message)
-		}
 	}
 }
 
@@ -189,7 +152,7 @@ func TestBangOperator(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		evaluated := testEval(tt.input)
+		evaluated := testEval(t, tt.input)
 		testBooleanObject(t, i, evaluated, tt.expected)
 	}
 }
@@ -357,32 +320,11 @@ func TestForLoops(t *testing.T) {
 			`,
 			expected: nil, // void object
 		},
-		{
-			name: "break outside loop should error",
-			input: `
-				break;
-			`,
-			expected: "break outside of loop", // error message string
-		},
-		{
-			name: "continue outside loop should error",
-			input: `
-				continue;
-			`,
-			expected: "continue outside of loop",
-		},
-		{
-			name: "break with label not matching any loop should error",
-			input: `
-				for { break unknownLabel; }
-			`,
-			expected: "break label 'unknownLabel' does not match any enclosing loop",
-		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			evaluated := testEval(tt.input)
+			evaluated := testEval(t, tt.input)
 
 			switch exp := tt.expected.(type) {
 			case int64:
@@ -411,20 +353,26 @@ func TestForLoops(t *testing.T) {
 	}
 }
 
-func testEval(input string) object.Object {
-	l := lexer.New(input)
-	p := parser.New(l)
+// testEval runs every phase and evaluates the program. The evaluator trusts
+// the checked program, so a test fails if any earlier phase reports an error.
+func testEval(t *testing.T, input string) object.Object {
+	t.Helper()
+	p := parser.New(lexer.New(input))
 	program := p.ParseProgram()
-	// Errors are ignored so the evaluator's own runtime errors can be tested
-	// on programs the earlier phases would reject.
-	resolver.New(program).Resolve()
-	inference.New(program).Infer()
-	semantic.New(program).Analyze()
-	env := object.NewEnvironment()
+	if errs := p.Errors(); len(errs) > 0 {
+		t.Fatalf("parser errors for %q: %v", input, errs)
+	}
+	if _, errs := resolver.New(program).Resolve(); len(errs) > 0 {
+		t.Fatalf("resolver errors for %q: %v", input, errs)
+	}
+	if errs := inference.New(program).Infer(); len(errs) > 0 {
+		t.Fatalf("inference errors for %q: %v", input, errs)
+	}
+	if errs := semantic.New(program).Analyze(); len(errs) > 0 {
+		t.Fatalf("semantic errors for %q: %v", input, errs)
+	}
 
-	evaluator := New(program, env)
-
-	return evaluator.Evaluate()
+	return New(program, object.NewEnvironment()).Evaluate()
 }
 
 func testIntegerObject(t *testing.T, obj object.Object, expected int64) bool {
