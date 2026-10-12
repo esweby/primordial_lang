@@ -19,32 +19,20 @@ func (e *Evaluator) evalMemberProperty(
 
 	switch receiver := receiver.(type) {
 	case *object.Array:
-		switch exp.Name.Value {
-		case "length":
+		if exp.Name.Value == "length" {
 			return newIntegerObject(big.NewInt(int64(len(receiver.Elements))), types.IntType)
 		}
-
 	case *object.Slice:
-		switch exp.Name.Value {
-		case "length":
+		if exp.Name.Value == "length" {
 			return newIntegerObject(big.NewInt(int64(len(receiver.Elements))), types.IntType)
 		}
 	case *object.Struct:
-		value, ok := receiver.Fields[exp.Name.Value]
-		if ok {
-			field := e.findStructField(receiver.Definition, exp.Name.Value)
-			if field != nil && !field.Public && !e.hasStructAccess(receiver, env) {
-				return newError("field %s.%s is private", receiver.Name, exp.Name.Value)
-			}
+		if value, ok := receiver.Fields[exp.Name.Value]; ok {
 			return value
 		}
 	}
 
-	return newError(
-		"member %s is not available on %s",
-		exp.Name.Value,
-		receiver.Type(),
-	)
+	return internalError("member %s on %s", exp.Name.Value, receiver.Type())
 }
 
 func (e *Evaluator) evalMemberCall(
@@ -64,103 +52,33 @@ func (e *Evaluator) evalMemberCall(
 
 	switch receiver := receiver.(type) {
 	case *object.Array:
-		return e.evalArrayMethod(
-			receiver,
-			exp.Name.Value,
-			args,
-		)
+		if exp.Name.Value == "toSlice" {
+			return &object.Slice{Elements: append([]object.Object(nil), receiver.Elements...)}
+		}
 
 	case *object.Slice:
-		return e.evalSliceMethod(
-			receiver,
-			exp.Name.Value,
-			args,
-		)
+		if exp.Name.Value == "append" {
+			receiver.Elements = append(receiver.Elements, args[0])
+			return nil
+		}
 
 	case *object.StructDefinition:
-		function := e.findStructFunction(receiver.Declaration.TypeFunctions, exp.Name.Value)
-		if function == nil {
-			return newError("struct %s has no type function %s", receiver.Declaration.Name.Value, exp.Name.Value)
+		if function := e.findStructFunction(receiver.Declaration.TypeFunctions, exp.Name.Value); function != nil {
+			functionEnv := object.NewEnclosedEnvironment(receiver.Env)
+			return e.applyFunction(newStructFunction(function, functionEnv), args)
 		}
-		functionEnv := object.NewEnclosedEnvironment(receiver.Env)
-		functionEnv.SetStructContext(receiver)
-		return e.applyFunction(newStructFunction(function, functionEnv), args)
 
 	case *object.Struct:
-		if receiver.Definition == nil || receiver.Definition.Declaration.Impl == nil {
-			return newError("struct %s has no method %s", receiver.Name, exp.Name.Value)
+		if receiver.Definition.Declaration.Impl != nil {
+			if method := e.findStructFunction(receiver.Definition.Declaration.Impl.Methods, exp.Name.Value); method != nil {
+				methodEnv := object.NewEnclosedEnvironment(receiver.Definition.Env)
+				methodEnv.Set("self", receiver)
+				return e.applyFunction(newStructFunction(method, methodEnv), args)
+			}
 		}
-		method := e.findStructFunction(receiver.Definition.Declaration.Impl.Methods, exp.Name.Value)
-		if method == nil {
-			return newError("struct %s has no method %s", receiver.Name, exp.Name.Value)
-		}
-		methodEnv := object.NewEnclosedEnvironment(receiver.Definition.Env)
-		methodEnv.Set("self", receiver)
-		methodEnv.SetStructContext(receiver.Definition)
-		return e.applyFunction(newStructFunction(method, methodEnv), args)
-
-	default:
-		return newError(
-			"type %s has no methods",
-			receiver.Type(),
-		)
 	}
-}
 
-func (e *Evaluator) evalSliceMethod(
-	slice *object.Slice,
-	name string,
-	args []object.Object,
-) object.Object {
-	switch name {
-	case "append":
-		if len(args) != 1 {
-			return newError(
-				"append expects 1 argument, got %d",
-				len(args),
-			)
-		}
-
-		slice.Elements = append(slice.Elements, args[0])
-		return nil
-
-	default:
-		return newError(
-			"slice has no method %s",
-			name,
-		)
-	}
-}
-
-func (e *Evaluator) evalArrayMethod(
-	array *object.Array,
-	name string,
-	args []object.Object,
-) object.Object {
-	switch name {
-	case "toSlice":
-		if len(args) != 0 {
-			return newError(
-				"toSlice expects 0 arguments, got %d",
-				len(args),
-			)
-		}
-
-		elements := append(
-			[]object.Object(nil),
-			array.Elements...,
-		)
-
-		return &object.Slice{
-			Elements: elements,
-		}
-
-	default:
-		return newError(
-			"array has no method %s",
-			name,
-		)
-	}
+	return internalError("method %s on %s", exp.Name.Value, receiver.Type())
 }
 
 func (e *Evaluator) evalMemberAssignment(
@@ -174,43 +92,14 @@ func (e *Evaluator) evalMemberAssignment(
 	}
 	receiver, ok := receiverObject.(*object.Struct)
 	if !ok {
-		return newError("cannot assign member %s on %s", target.Name.Value, receiverObject.Type())
-	}
-
-	field := e.findStructField(receiver.Definition, target.Name.Value)
-	if field == nil {
-		return newError("struct %s has no field %s", receiver.Name, target.Name.Value)
-	}
-	// Public fields are settable from anywhere; private ones only inside their struct.
-	if !field.Public && !e.hasStructAccess(receiver, env) {
-		return newError("field %s.%s is private", receiver.Name, target.Name.Value)
+		return internalError("member assignment on %s", receiverObject.Type())
 	}
 
 	value := e.eval(valueExpression, env)
 	if isError(value) {
 		return value
 	}
-	coerced, err := e.coerceRuntimeArgument(value, field.Type)
-	if err != nil {
-		return newError("assignment to %s.%s: %s", receiver.Name, target.Name.Value, err.Error())
-	}
-	receiver.Fields[target.Name.Value] = coerced
-	return nil
-}
-
-func (e *Evaluator) hasStructAccess(receiver *object.Struct, env *object.Environment) bool {
-	return env.StructContext() == receiver.Definition
-}
-
-func (e *Evaluator) findStructField(definition *object.StructDefinition, name string) *ast.StructField {
-	if definition == nil || definition.Declaration == nil {
-		return nil
-	}
-	for _, field := range definition.Declaration.Fields {
-		if field.Name.Value == name {
-			return field
-		}
-	}
+	receiver.Fields[target.Name.Value] = value
 	return nil
 }
 

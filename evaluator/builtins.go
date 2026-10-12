@@ -10,10 +10,6 @@ import (
 var builtins = map[string]*object.Builtin{
 	"len": {
 		Fn: func(args ...object.Object) object.Object {
-			if len(args) != 1 {
-				return newError("wrong number of arguments. got=%d, want=1", len(args))
-			}
-
 			switch arg := args[0].(type) {
 			case *object.Array:
 				return newIntegerObject(big.NewInt(int64(len(arg.Elements))), types.IntType)
@@ -22,7 +18,7 @@ var builtins = map[string]*object.Builtin{
 			case *object.String:
 				return newIntegerObject(big.NewInt(int64(len(arg.Value))), types.IntType)
 			default:
-				return newError("argument to `len` not supported, got %s", args[0].Type())
+				return internalError("len of %s", args[0].Type())
 			}
 		},
 	},

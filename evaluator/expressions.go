@@ -29,7 +29,7 @@ func (e *Evaluator) evalExpression(exprNode ast.Node, env *object.Environment) o
 	case *ast.ArrayLiteral:
 		return e.evalArrayLiteral(node, env)
 	case *ast.SliceLiteral:
-		elements := e.evalTypedExpressions(node.Elements, node.Type, env)
+		elements := e.evalExpressions(node.Elements, env)
 		if len(elements) == 1 && isError(elements[0]) {
 			return elements[0]
 		}
@@ -58,11 +58,10 @@ func (e *Evaluator) evalExpression(exprNode ast.Node, env *object.Environment) o
 	case *ast.Identifier:
 		return e.evalIdentifier(node, env)
 	case *ast.IntegerLiteral:
-		integerType := node.GetResolvedType()
-		if integerType == nil {
-			integerType = types.UntypedIntegerType
+		if !types.IsInteger(node.GetResolvedType()) {
+			return internalError("integer literal %s has no concrete type", node.Value)
 		}
-		return newIntegerObject(node.Value, integerType)
+		return newIntegerObject(node.Value, node.GetResolvedType())
 	case *ast.StringLiteral:
 		return &object.String{Value: node.Value}
 	case *ast.Boolean:
@@ -72,7 +71,7 @@ func (e *Evaluator) evalExpression(exprNode ast.Node, env *object.Environment) o
 		if isError(right) {
 			return right
 		}
-		return e.evalPrefixExpression(node.Operator, right, node.GetResolvedType())
+		return e.evalPrefixExpression(node.Operator, right)
 	case *ast.InfixExpression:
 		left := e.eval(node.Left, env)
 		if isError(left) {
@@ -82,7 +81,7 @@ func (e *Evaluator) evalExpression(exprNode ast.Node, env *object.Environment) o
 		if isError(right) {
 			return right
 		}
-		return e.evalInfixExpression(node.Operator, left, right, node.GetResolvedType())
+		return e.evalInfixExpression(node.Operator, left, right)
 	}
 
 	return nil
@@ -92,8 +91,8 @@ func (e *Evaluator) evalCallExpression(call *ast.CallExpression, env *object.Env
 	if member, ok := call.Function.(*ast.MemberExpression); ok {
 		return e.evalMemberCall(member, call.Arguments, env)
 	}
-	if identifier, ok := call.Function.(*ast.Identifier); ok {
-		if target, isBuiltinType := types.GetBuiltin(identifier.Value); isBuiltinType && types.IsInteger(target) {
+	if identifier, ok := call.Function.(*ast.Identifier); ok && isBuiltin(identifier) {
+		if target, isType := types.GetBuiltin(identifier.Value); isType && types.IsInteger(target) {
 			return e.evalIntegerConversion(call, target, env)
 		}
 	}
@@ -120,7 +119,7 @@ func (e *Evaluator) evalIndexExpression(left, index object.Object) object.Object
 	case left.Type() == object.MAP_OBJ:
 		return e.evalMapIndexExpression(left, index)
 	default:
-		return newError("index operator not supported: %s", left.Type())
+		return internalError("index into %s", left.Type())
 	}
 }
 
@@ -128,7 +127,7 @@ func (e *Evaluator) evalArrayLiteral(
 	arr *ast.ArrayLiteral,
 	env *object.Environment,
 ) object.Object {
-	elements := e.evalTypedExpressions(arr.Elements, arr.Type, env)
+	elements := e.evalExpressions(arr.Elements, env)
 	if len(elements) == 1 && isError(elements[0]) {
 		return elements[0]
 	}
@@ -136,10 +135,7 @@ func (e *Evaluator) evalArrayLiteral(
 	for len(elements) < arr.Size {
 		neutral, ok := neutralObject(arr.Type)
 		if !ok {
-			return newError(
-				"internal error: no neutral value for type %s",
-				arr.Type.Name(),
-			)
+			return internalError("no neutral value for type %s", arr.Type.Name())
 		}
 
 		elements = append(elements, neutral)
@@ -166,12 +162,7 @@ func (e *Evaluator) evalBlock(block *ast.BlockExpression, env *object.Environmen
 func (e *Evaluator) evalExpressions(args []ast.Expression, env *object.Environment) []object.Object {
 	var result []object.Object
 	for _, expr := range args {
-		var evaluated object.Object
-		if forLoop, ok := expr.(*ast.ForLoop); ok {
-			evaluated = e.evalForLoop(forLoop, env, true)
-		} else {
-			evaluated = e.eval(expr, env)
-		}
+		evaluated := e.evalValue(expr, env)
 		if isError(evaluated) {
 			return []object.Object{evaluated}
 		}
@@ -215,14 +206,9 @@ func (e *Evaluator) evalSliceIndexExpression(array, index object.Object) object.
 func (e *Evaluator) evalMapIndexExpression(m, index object.Object) object.Object {
 	mo := m.(*object.Map)
 
-	coercedKey, err := e.coerceRuntimeArgument(index, mo.MapType.Key)
-	if err != nil {
-		return newError("map index: %s", err.Error())
-	}
-
-	hashable, ok := coercedKey.(object.Hashable)
+	hashable, ok := index.(object.Hashable)
 	if !ok {
-		return newError("unhashable type as map key: %s", coercedKey.Type())
+		return internalError("map key %s is not hashable", index.Type())
 	}
 
 	value, ok := mo.Pairs[hashable.HashKey()]
@@ -234,22 +220,8 @@ func (e *Evaluator) evalMapIndexExpression(m, index object.Object) object.Object
 }
 
 func (e *Evaluator) applyFunction(fn object.Object, args []object.Object) object.Object {
-	if fn == nil {
-		return newError("attempted to call missing function value")
-	}
-
 	switch fn := fn.(type) {
 	case *object.Function:
-		if len(args) != len(fn.Parameters) {
-			return newError("wrong number of arguments: expected %d, got %d", len(fn.Parameters), len(args))
-		}
-		for i, parameter := range fn.Parameters {
-			coerced, err := e.coerceRuntimeArgument(args[i], parameter.Type)
-			if err != nil {
-				return newError("argument %d: %s", i, err.Error())
-			}
-			args[i] = coerced
-		}
 		extendedEnv := e.extendFunctionEnv(fn, args)
 		evaluated := e.eval(fn.Body, extendedEnv)
 		if isError(evaluated) {
@@ -261,12 +233,12 @@ func (e *Evaluator) applyFunction(fn object.Object, args []object.Object) object
 		if _, ok := evaluated.(*object.Continue); ok {
 			return evaluated
 		}
-		return e.coerceFunctionResult(fn, e.unwrapReturnValue(evaluated))
+		return e.unwrapReturnValue(evaluated)
 	case *object.Builtin:
 		return fn.Fn(args...)
 	}
 
-	return newError("not a function: %s", fn.Type())
+	return internalError("call to a value that is not a function")
 }
 
 func (e *Evaluator) extendFunctionEnv(fn *object.Function, args []object.Object) *object.Environment {
@@ -341,21 +313,10 @@ func (e *Evaluator) evalIdentifier(i *ast.Identifier, env *object.Environment) o
 		return val
 	}
 
-	return newError("%s", "identifier not found: "+i.Value)
+	return internalError("identifier %s has no value", i.Value)
 }
 
 func (e *Evaluator) evalForLoop(node *ast.ForLoop, env *object.Environment, expectsValue bool) object.Object {
-	e.loopDepth++
-	if node.Label != nil {
-		e.loopLabels = append(e.loopLabels, node.Label.Value)
-	}
-	defer func() {
-		e.loopDepth--
-		if node.Label != nil {
-			e.loopLabels = e.loopLabels[:len(e.loopLabels)-1]
-		}
-	}()
-
 	loopEnv := object.NewEnclosedEnvironment(env)
 	var result object.Object
 	var hasResult bool
@@ -550,99 +511,41 @@ func (e *Evaluator) iterableToElements(obj object.Object) []object.Object {
 			})
 		}
 		return elements
-	case *object.String:
-		runes := []rune(o.Value)
-		elements := make([]object.Object, len(runes))
-		for i, r := range runes {
-			elements[i] = &object.Tuple{
-				Elements: []object.Object{
-					newIntegerObject(big.NewInt(int64(i)), types.IntType),
-					&object.String{Value: string(r)},
-				},
-			}
-		}
-		return elements
 	default:
 		return []object.Object{}
 	}
 }
 
-func (e *Evaluator) evalTypedExpressions(expressions []ast.Expression, target types.Type, env *object.Environment) []object.Object {
-	result := make([]object.Object, 0, len(expressions))
-	for _, expression := range expressions {
-		value := e.eval(expression, env)
-		if isError(value) {
-			return []object.Object{value}
-		}
-		coerced, err := e.coerceRuntimeArgument(value, target)
-		if err != nil {
-			return []object.Object{newError("%s", err.Error())}
-		}
-		result = append(result, coerced)
-	}
-	return result
-}
-
-func (e *Evaluator) evalPrefixExpression(op string, r object.Object, resultType types.Type) object.Object {
+func (e *Evaluator) evalPrefixExpression(op string, r object.Object) object.Object {
 	switch op {
 	case "!":
-		return e.evalBangOperatorExpression(r)
+		return e.nativeBoolToBooleanObject(r != TRUE)
 	case "-":
-		return e.evalMinusPrefixOperatorExpression(r, resultType)
+		return e.evalMinusPrefixOperatorExpression(r)
 	default:
-		return newError("unknown operator: %s %s", op, r.Type())
+		return internalError("unknown prefix operator %s", op)
 	}
 }
 
-func (e *Evaluator) evalInfixExpression(operator string, left, right object.Object, resultType types.Type) object.Object {
+func (e *Evaluator) evalInfixExpression(operator string, left, right object.Object) object.Object {
 	switch {
 	case left.Type() == object.INTEGER_OBJ && right.Type() == object.INTEGER_OBJ:
-		return e.evalIntegerInfixExpression(operator, left, right, resultType)
+		return e.evalIntegerInfixExpression(operator, left.(*object.Integer), right.(*object.Integer))
 	case left.Type() == object.STRING_OBJ && right.Type() == object.STRING_OBJ:
 		return e.evalStringInfixExpression(operator, left, right)
 	case operator == "==":
 		return e.nativeBoolToBooleanObject(left == right)
 	case operator == "!=":
 		return e.nativeBoolToBooleanObject(left != right)
-	case left.Type() != right.Type():
-		return newError("type mismatch: %s %s %s", left.Type(), operator, right.Type())
 	default:
-		return newError("unknown operator: %s %s %s", left.Type(), operator, right.Type())
+		return internalError("operator %s on %s and %s", operator, left.Type(), right.Type())
 	}
 }
 
-func (e *Evaluator) evalIntegerInfixExpression(operator string, left, right object.Object, resultType types.Type) object.Object {
-	leftInteger := left.(*object.Integer)
-	rightInteger := right.(*object.Integer)
-
-	// Coerce untyped integer to match the other operand's concrete type
-	if types.IsUntypedInteger(leftInteger.IntegerType) && !types.IsUntypedInteger(rightInteger.IntegerType) {
-		coerced, err := e.coerceRuntimeArgument(left, rightInteger.IntegerType)
-		if err != nil {
-			return newError("integer coercion: %s", err.Error())
-		}
-		leftInteger = coerced.(*object.Integer)
-	} else if types.IsUntypedInteger(rightInteger.IntegerType) && !types.IsUntypedInteger(leftInteger.IntegerType) {
-		coerced, err := e.coerceRuntimeArgument(right, leftInteger.IntegerType)
-		if err != nil {
-			return newError("integer coercion: %s", err.Error())
-		}
-		rightInteger = coerced.(*object.Integer)
-	}
-
-	if !types.IsTypesEqual(leftInteger.IntegerType, rightInteger.IntegerType) {
-		return newError("integer type mismatch: %s and %s", leftInteger.IntegerType.Name(), rightInteger.IntegerType.Name())
-	}
-
-	leftVal := leftInteger.Value
-	rightVal := rightInteger.Value
-	if resultType == nil {
-		resultType = leftInteger.IntegerType
-	}
-
-	if resultType == nil {
-		resultType = leftInteger.IntegerType
-	}
+// evalIntegerInfixExpression applies an operator to two integers of the same
+// type, trapping results that do not fit it.
+func (e *Evaluator) evalIntegerInfixExpression(operator string, left, right *object.Integer) object.Object {
+	leftVal, rightVal, resultType := left.Value, right.Value, left.IntegerType
 
 	switch operator {
 	case "+":
@@ -669,7 +572,7 @@ func (e *Evaluator) evalIntegerInfixExpression(operator string, left, right obje
 	case "!=":
 		return e.nativeBoolToBooleanObject(leftVal.Cmp(rightVal) != 0)
 	default:
-		return newError("unknown operator: %s %s %s", left.Type(), operator, right.Type())
+		return internalError("unknown integer operator %s", operator)
 	}
 }
 
@@ -685,21 +588,20 @@ func (e *Evaluator) evalStringInfixExpression(operator string, left, right objec
 	case "!=":
 		return e.nativeBoolToBooleanObject(leftVal != rightVal)
 	default:
-		return newError("unknown operator: %s %s %s", left.Type(), operator, right.Type())
+		return internalError("unknown string operator %s", operator)
 	}
 }
 
+// evalIntegerConversion converts an integer to another integer type, trapping
+// a value that does not fit.
 func (e *Evaluator) evalIntegerConversion(call *ast.CallExpression, target types.Type, env *object.Environment) object.Object {
-	if len(call.Arguments) != 1 {
-		return newError("integer conversion to %s expects 1 argument, got %d", target.Name(), len(call.Arguments))
-	}
 	value := e.eval(call.Arguments[0], env)
 	if isError(value) {
 		return value
 	}
 	integer, ok := value.(*object.Integer)
 	if !ok {
-		return newError("cannot convert %s to %s", value.Type(), target.Name())
+		return internalError("conversion of %s to %s", value.Type(), target.Name())
 	}
 	concrete := target.(*types.Integer)
 	if !concrete.CanRepresent(integer.Value) {
@@ -708,28 +610,16 @@ func (e *Evaluator) evalIntegerConversion(call *ast.CallExpression, target types
 	return newIntegerObject(integer.Value, target)
 }
 
-func (e *Evaluator) evalBangOperatorExpression(expr object.Object) object.Object {
-	switch expr {
-	case TRUE:
-		return FALSE
-	case FALSE:
-		return TRUE
-	default:
-		return FALSE
-	}
-}
-
-func (e *Evaluator) evalMinusPrefixOperatorExpression(expr object.Object, resultType types.Type) object.Object {
+func (e *Evaluator) evalMinusPrefixOperatorExpression(expr object.Object) object.Object {
 	integer, ok := expr.(*object.Integer)
 	if !ok {
-		return newError("unknown operator: -%s", expr.Type())
+		return internalError("negation of %s", expr.Type())
 	}
+	return e.checkedIntegerResult(new(big.Int).Neg(integer.Value), integer.IntegerType)
+}
 
-	if resultType == nil {
-		resultType = integer.IntegerType
-	}
-	if integerType, ok := resultType.(*types.Integer); ok && !integerType.Signed() {
-		return newError("cannot negate unsigned integer %s", resultType.Name())
-	}
-	return e.checkedIntegerResult(new(big.Int).Neg(integer.Value), resultType)
+// isBuiltin reports whether an identifier names a builtin rather than a
+// declaration in the program.
+func isBuiltin(ident *ast.Identifier) bool {
+	return ident.Symbol != nil && ident.Symbol.Declaration() == nil
 }
