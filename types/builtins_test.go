@@ -12,6 +12,8 @@ func TestGetBuiltin(t *testing.T) {
 		wantOk   bool
 	}{
 		{"bool", &Bool{}, true},
+		{"int", IntType, true},
+		{"uint", UIntType, true},
 		{"int8", Int8Type, true},
 		{"uint8", UInt8Type, true},
 		{"int16", Int16Type, true},

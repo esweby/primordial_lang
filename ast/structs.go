@@ -118,6 +118,7 @@ type StructLiteral struct {
 	Token  token.Token
 	Name   *Identifier
 	Fields []*StructLiteralField
+	Typed
 }
 
 func (sl *StructLiteral) expressionNode() {}

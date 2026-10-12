@@ -6,13 +6,13 @@ import (
 	"strings"
 
 	"github.com/esweby/primordial_lang/token"
-	"github.com/esweby/primordial_lang/types"
 )
 
 type Identifier struct {
 	Token  token.Token
 	Value  string
 	Symbol Symbol // set by the resolver
+	Typed
 }
 
 func (i *Identifier) expressionNode() {}
@@ -30,6 +30,7 @@ func (i *Identifier) String() string { return i.Value }
 type TupleTargetExpression struct {
 	Token token.Token
 	Names []*Identifier
+	Typed
 }
 
 func (tte *TupleTargetExpression) expressionNode() {}
@@ -47,13 +48,10 @@ func (tte *TupleTargetExpression) String() string {
 }
 
 type IntegerLiteral struct {
-	Token        token.Token
-	Value        *big.Int
-	ResolvedType types.Type
+	Token token.Token
+	Value *big.Int
+	Typed
 }
-
-func (il *IntegerLiteral) GetResolvedType() types.Type  { return il.ResolvedType }
-func (il *IntegerLiteral) SetResolvedType(t types.Type) { il.ResolvedType = t }
 
 func (il *IntegerLiteral) expressionNode() {}
 
@@ -68,6 +66,7 @@ func (il *IntegerLiteral) String() string {
 type StringLiteral struct {
 	Token token.Token
 	Value string
+	Typed
 }
 
 func (sl *StringLiteral) expressionNode() {}
@@ -83,6 +82,7 @@ func (sl *StringLiteral) String() string {
 type Boolean struct {
 	Token token.Token
 	Value bool
+	Typed
 }
 
 func (b *Boolean) expressionNode() {}
@@ -96,14 +96,11 @@ func (b *Boolean) String() string {
 }
 
 type PrefixExpression struct {
-	Token        token.Token
-	Operator     string
-	Right        Expression
-	ResolvedType types.Type
+	Token    token.Token
+	Operator string
+	Right    Expression
+	Typed
 }
-
-func (pe *PrefixExpression) GetResolvedType() types.Type  { return pe.ResolvedType }
-func (pe *PrefixExpression) SetResolvedType(t types.Type) { pe.ResolvedType = t }
 
 func (pe *PrefixExpression) expressionNode() {}
 
@@ -122,15 +119,12 @@ func (pe *PrefixExpression) String() string {
 }
 
 type InfixExpression struct {
-	Token        token.Token
-	Left         Expression
-	Operator     string
-	Right        Expression
-	ResolvedType types.Type
+	Token    token.Token
+	Left     Expression
+	Operator string
+	Right    Expression
+	Typed
 }
-
-func (ie *InfixExpression) GetResolvedType() types.Type  { return ie.ResolvedType }
-func (ie *InfixExpression) SetResolvedType(t types.Type) { ie.ResolvedType = t }
 
 func (ie *InfixExpression) expressionNode() {}
 
@@ -156,6 +150,7 @@ type IfExpression struct {
 	Condition Expression
 	Body      *BlockExpression
 	Else      Expression
+	Typed
 }
 
 func (ife *IfExpression) expressionNode() {}
@@ -183,14 +178,11 @@ func (ife *IfExpression) String() string {
 }
 
 type CallExpression struct {
-	Token        token.Token
-	Function     Expression
-	Arguments    []Expression
-	ResolvedType types.Type
+	Token     token.Token
+	Function  Expression
+	Arguments []Expression
+	Typed
 }
-
-func (ce *CallExpression) GetResolvedType() types.Type  { return ce.ResolvedType }
-func (ce *CallExpression) SetResolvedType(t types.Type) { ce.ResolvedType = t }
 
 func (ce *CallExpression) expressionNode() {}
 
@@ -218,6 +210,7 @@ type MemberExpression struct {
 	Token    token.Token
 	Receiver Expression
 	Name     *Identifier
+	Typed
 }
 
 func (me *MemberExpression) expressionNode() {}
@@ -236,6 +229,7 @@ type BlockExpression struct {
 	Token      token.Token
 	Statements []Statement
 	Scope      Scope // set by the resolver
+	Typed
 }
 
 func (bs *BlockExpression) expressionNode() {}

@@ -27,6 +27,15 @@ type TypedExpression interface {
 	SetResolvedType(types.Type)
 }
 
+// Typed holds the type the inference phase assigns to an expression. It is
+// embedded in every expression node.
+type Typed struct {
+	ResolvedType types.Type
+}
+
+func (t *Typed) GetResolvedType() types.Type    { return t.ResolvedType }
+func (t *Typed) SetResolvedType(typ types.Type) { t.ResolvedType = typ }
+
 type Assignable interface {
 	Expression
 	isAssignable()

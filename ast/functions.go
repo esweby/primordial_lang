@@ -46,6 +46,7 @@ type FunctionLiteral struct {
 	ReturnTypes []*ReturnType
 	Body        *BlockExpression
 	Scope       Scope // set by the resolver; shared with Body
+	Typed
 }
 
 func (fl *FunctionLiteral) expressionNode() {}

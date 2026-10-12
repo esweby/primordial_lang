@@ -23,6 +23,8 @@ var VoidType = &Void{}
 var builtins = map[string]Type{
 	"invalid":  InvalidType,
 	"bool":     BoolType,
+	"int":      IntType,
+	"uint":     UIntType,
 	"int8":     Int8Type,
 	"uint8":    UInt8Type,
 	"int16":    Int16Type,

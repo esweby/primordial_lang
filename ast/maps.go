@@ -11,6 +11,7 @@ type MapLiteral struct {
 	Token token.Token
 	Type  types.Type
 	Pairs []*MapLiteralPair
+	Typed
 }
 
 func (ml *MapLiteral) expressionNode() {}

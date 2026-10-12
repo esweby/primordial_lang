@@ -4,7 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"strings"
 	"testing"
 
 	"github.com/esweby/primordial_lang/lexer"
@@ -14,14 +13,6 @@ import (
 )
 
 var rawString = regexp.MustCompile("`([^`]*)`")
-
-// knownDifferences are programs semantic accepts only because it does not
-// check them, which the resolver correctly rejects.
-var knownDifferences = map[string]string{
-	// `int` is in the specification but not in the types package; semantic
-	// does not check the key and value types of map annotations.
-	`x := map[string]int{}; x["key"] = 42;`: "unknown type: int",
-}
 
 // TestResolver_AcceptsSemanticCorpus resolves every program in the semantic
 // and evaluator test files that parses and passes semantic analysis. Any such
@@ -58,14 +49,7 @@ func TestResolver_AcceptsSemanticCorpus(t *testing.T) {
 
 			// semantic writes inferred types onto the AST, so resolve a fresh parse.
 			checked++
-			_, errs := resolver.New(parser.New(lexer.New(input)).ParseProgram()).Resolve()
-			if expected, known := knownDifferences[input]; known {
-				if len(errs) != 1 || !strings.Contains(errs[0], expected) {
-					t.Errorf("%s: expected known difference %q, got %v", file, expected, errs)
-				}
-				continue
-			}
-			if len(errs) > 0 {
+			if _, errs := resolver.New(parser.New(lexer.New(input)).ParseProgram()).Resolve(); len(errs) > 0 {
 				t.Errorf("%s: resolver rejected a program semantic accepts:\n%s\nerrors: %v", file, input, errs)
 			}
 		}
