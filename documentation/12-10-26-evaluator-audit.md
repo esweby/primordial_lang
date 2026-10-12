@@ -77,6 +77,6 @@ Where a check guards something that cannot happen, the code can either drop it o
 
 ## Order of work
 
-2. Make `testEval` fail on phase errors and delete or rewrite the tests listed above.
-3. Remove integer coercion.
-4. Remove the checks guaranteed by earlier phases, and the dead code.
+1. Make `testEval` fail on phase errors and delete or rewrite the tests listed above.
+2. Remove integer coercion.
+3. Remove the checks guaranteed by earlier phases, and the dead code.
