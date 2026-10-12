@@ -4,479 +4,472 @@ import (
 	"fmt"
 
 	"github.com/esweby/primordial_lang/ast"
+	"github.com/esweby/primordial_lang/resolver"
 	"github.com/esweby/primordial_lang/types"
 )
 
-func (sa *SemanticAnalyzer) analyzeBlock(block *ast.BlockExpression) BlockResult {
-	if block == nil {
-		return BlockResult{Type: nil, Returns: false}
-	}
-
-	var lastType types.Type
-	var lastExpression ast.Expression
-	var returns bool
-
-	for _, stmt := range block.Statements {
-		stmtType := sa.analyzeStatement(stmt)
-
-		// If the statement is a return statement, mark the block as returning.
-		if _, ok := stmt.(*ast.ReturnStatement); ok {
-			returns = true
-			// Do not update lastType on return.
-			continue
-		}
-
-		// If the statement is an expression statement, its type may be the block's value.
-		if expressionStatement, ok := stmt.(*ast.ExpressionStatement); ok {
-			lastType = stmtType
-			lastExpression = expressionStatement.Expression
-		}
-		// Other statements (declarations, assignments, function defs) do not affect the block's value.
-	}
-
-	if returns {
-		return BlockResult{Type: nil, Returns: true}
-	}
-	return BlockResult{Type: lastType, Returns: false, Expression: lastExpression}
-}
-
-func (sa *SemanticAnalyzer) analyzeExpression(exp ast.Expression) types.Type {
-	if exp == nil {
-		sa.error("analyzeExpression called with nil expression")
-		return types.InvalidType
-	}
-
-	switch e := exp.(type) {
-	case *ast.IntegerLiteral:
-		if e.GetResolvedType() != nil {
-			return e.GetResolvedType()
-		}
-		return types.UntypedIntegerType
-	case *ast.Boolean:
-		return types.BoolType
-	case *ast.StringLiteral:
-		return types.StringType
+func (a *Analyzer) analyzeExpression(expr ast.Expression) {
+	switch e := expr.(type) {
+	case nil:
 	case *ast.Identifier:
-		sym, ok := sa.current.Get(e.Value)
-		if !ok {
-			sa.error("undefined identifier: " + e.Value)
-			return types.InvalidType
-		}
-		if _, isType := sym.(*StructSymbol); isType {
-			sa.error(fmt.Sprintf("type %s cannot be used as a value", e.Value))
-			return types.InvalidType
-		}
-		return sym.Type()
-	case *ast.InfixExpression:
-		return sa.analyzeInfixExpression(e)
+		a.analyzeIdentifier(e)
 	case *ast.PrefixExpression:
-		return sa.analyzePrefixExpression(e)
+		a.analyzePrefixExpression(e)
+	case *ast.InfixExpression:
+		a.analyzeInfixExpression(e)
 	case *ast.CallExpression:
-		return sa.analyzeCallExpression(e)
-	case *ast.IfExpression:
-		// When used as an expression, we expect a value.
-		return sa.analyzeIfExpression(e, true)
-	case *ast.ForLoop:
-		return sa.analyzeForExpression(e, true)
-	case *ast.FunctionLiteral:
-		// A function literal as a standalone expression (e.g., passed as argument).
-		// We analyze it but do not register it; we return its generic type.
-		sa.analyzeStandaloneFunctionLiteral(e)
-		return types.FunctionType
-	case *ast.ArrayLiteral:
-		return sa.analyzeArrayLiteral(e)
-	case *ast.SliceLiteral:
-		return sa.analyzeSliceLiteral(e)
+		a.analyzeCallExpression(e)
 	case *ast.MemberExpression:
-		return sa.analyzeMemberExpression(e)
+		if member, found := a.lookupMember(e); found && member.Kind != types.MemberProperty {
+			a.errorAt(e, "method %s must be called", member.Name)
+		}
 	case *ast.IndexExpression:
-		return sa.analyzeIndexExpression(e)
-	case *ast.StructLiteral:
-		return sa.analyzeStructLiteral(e)
+		a.analyzeIndexExpression(e)
+	case *ast.IfExpression:
+		a.analyzeIfExpression(e, true)
+	case *ast.BlockExpression:
+		a.analyzeStatements(e.Statements)
+	case *ast.ForLoop:
+		a.analyzeForLoop(e, true)
+	case *ast.FunctionLiteral:
+		a.analyzeFunction(e.ReturnTypes, e.Body, "function literal", e)
+	case *ast.ArrayLiteral:
+		a.analyzeArrayLiteral(e)
+	case *ast.SliceLiteral:
+		if e.Type == nil {
+			a.errorAt(e, "slice literal has no element type")
+			return
+		}
+		a.analyzeElements("slice", e.Type, e.Elements)
 	case *ast.MapLiteral:
-		return sa.analyzeMapLiteral(e)
-	default:
-		sa.error(fmt.Sprintf("analyzeExpression received unexpected expression: %T", e))
-		return types.InvalidType
+		a.analyzeMapLiteral(e)
+	case *ast.StructLiteral:
+		a.analyzeStructLiteral(e)
 	}
 }
 
-func (sa *SemanticAnalyzer) analyzeInfixExpression(e *ast.InfixExpression) types.Type {
-	left := sa.analyzeExpression(e.Left)
-	right := sa.analyzeExpression(e.Right)
+// analyzeIdentifier reports names that are not values: types and builtins.
+func (a *Analyzer) analyzeIdentifier(ident *ast.Identifier) {
+	sym := symbolOf(ident)
+	if sym == nil {
+		return
+	}
+	switch sym.Kind {
+	case resolver.StructSymbol:
+		a.errorAt(ident, "type %s cannot be used as a value", ident.Value)
+	case resolver.BuiltinSymbol:
+		a.errorAt(ident, "builtin %s must be called", ident.Value)
+	}
+}
 
+func (a *Analyzer) analyzePrefixExpression(e *ast.PrefixExpression) {
+	a.analyzeExpression(e.Right)
+	right := typeOf(e.Right)
+	if types.IsInvalid(right) {
+		return
+	}
+
+	switch e.Operator {
+	case "-":
+		if !types.IsNumeric(right) {
+			a.errorAt(e, "operator - requires a number, got %s", right.Name())
+		}
+	case "!":
+		if !types.IsBoolean(right) {
+			a.errorAt(e, "operator ! requires a bool, got %s", right.Name())
+		}
+	default:
+		a.errorAt(e, "unknown prefix operator: %s", e.Operator)
+	}
+}
+
+func (a *Analyzer) analyzeInfixExpression(e *ast.InfixExpression) {
+	a.analyzeExpression(e.Left)
+	a.analyzeExpression(e.Right)
+	left, right := typeOf(e.Left), typeOf(e.Right)
 	if types.IsInvalid(left) || types.IsInvalid(right) {
-		return types.InvalidType
+		return
+	}
+	if types.IsInteger(left) && types.IsInteger(right) {
+		return
 	}
 
 	switch e.Operator {
 	case "+", "-", "*", "/":
 		if e.Operator == "+" && types.IsString(left) && types.IsString(right) {
-			return types.StringType
+			return
 		}
-		if (types.IsInteger(left) || types.IsUntypedInteger(left)) &&
-			(types.IsInteger(right) || types.IsUntypedInteger(right)) {
-			resultType, err := sa.resolveIntegerOperands(e, left, right)
-			if err != nil {
-				sa.error(err.Error())
-				return types.InvalidType
-			}
-			if e.Operator == "/" {
-				if divisor, ok := integerConstantValue(e.Right); ok && divisor.Sign() == 0 {
-					sa.error("division by zero")
-					return types.InvalidType
-				}
-			}
-			return resultType
+		if !types.IsNumeric(left) || !types.IsTypesEqual(left, right) {
+			a.errorAt(e, "mismatched types: %s %s %s", left.Name(), e.Operator, right.Name())
 		}
-		if !types.IsNumeric(left) || !types.IsNumeric(right) || !types.IsTypesEqual(left, right) {
-			sa.error(fmt.Sprintf("mismatched types: %s and %s", left.Name(), right.Name()))
-			return types.InvalidType
+	case "<", "<=", ">", ">=":
+		if !types.IsNumeric(left) || !types.IsTypesEqual(left, right) {
+			a.errorAt(e, "mismatched types: %s %s %s", left.Name(), e.Operator, right.Name())
 		}
-		e.SetResolvedType(left)
-		return left
-	case "<=", "<", ">", ">=":
-		if (types.IsInteger(left) || types.IsUntypedInteger(left)) &&
-			(types.IsInteger(right) || types.IsUntypedInteger(right)) {
-			if _, err := sa.resolveIntegerOperands(e, left, right); err != nil {
-				sa.error(err.Error())
-				return types.InvalidType
-			}
-			return types.BoolType
-		}
-		if !types.IsNumeric(left) || !types.IsNumeric(right) || !types.IsTypesEqual(left, right) {
-			sa.error(fmt.Sprintf("mismatched types: %s %s %s", left.Name(), e.Operator, right.Name()))
-			return types.InvalidType
-		}
-
-		return types.BoolType
 	case "==", "!=":
-		if (types.IsInteger(left) || types.IsUntypedInteger(left)) &&
-			(types.IsInteger(right) || types.IsUntypedInteger(right)) {
-			if _, err := sa.resolveIntegerOperands(e, left, right); err != nil {
-				sa.error(err.Error())
-				return types.InvalidType
-			}
-			return types.BoolType
+		if !types.IsNumeric(left) && !types.IsBoolean(left) && !types.IsString(left) {
+			a.errorAt(e, "type %s cannot be compared", left.Name())
+			return
 		}
-		comparable := types.IsNumeric(left) ||
-			types.IsBoolean(left) ||
-			types.IsString(left)
-
-		if !comparable {
-			sa.error(fmt.Sprintf("invalid type: %s", left.Name()))
-			return types.InvalidType
-		}
-
 		if !types.IsTypesEqual(left, right) {
-			sa.error(fmt.Sprintf("mismatched types: %s %s %s", left.Name(), e.Operator, right.Name()))
-			return types.InvalidType
+			a.errorAt(e, "mismatched types: %s %s %s", left.Name(), e.Operator, right.Name())
 		}
-
-		return types.BoolType
 	default:
-		sa.error(fmt.Sprintf("unknown infix operator: %s", e.Operator))
-		return types.InvalidType
+		a.errorAt(e, "unknown infix operator: %s", e.Operator)
 	}
 }
 
-func (sa *SemanticAnalyzer) analyzePrefixExpression(pe *ast.PrefixExpression) types.Type {
-	right := sa.analyzeExpression(pe.Right)
-
-	if sa.isInvalidPrefixType(right) {
-		sa.error(fmt.Sprintf("analyzePrefixExpression: type is not a valid Prefix Expression: %s", right.Name()))
-		return types.InvalidType
+func (a *Analyzer) analyzeCallExpression(e *ast.CallExpression) {
+	for _, arg := range e.Arguments {
+		a.analyzeExpression(arg)
 	}
 
-	switch pe.Operator {
-	case "-":
-		if types.IsUntypedInteger(right) {
-			pe.SetResolvedType(types.UntypedIntegerType)
-			return types.UntypedIntegerType
+	switch callee := e.Function.(type) {
+	case *ast.Identifier:
+		if sym := symbolOf(callee); sym != nil && sym.Kind == resolver.BuiltinSymbol {
+			// Integer conversions are checked by inference.
+			if callee.Value == "len" {
+				a.analyzeLenCall(e)
+			}
+			return
 		}
-		if !types.IsNumeric(right) {
-			sa.error(fmt.Sprintf("analyzePrefixExpression - operator: type is not numeric. Got=%s", right.Name()))
-			return types.InvalidType
-		}
-		if integerType, ok := right.(*types.Integer); ok && !integerType.Signed() {
-			sa.error(fmt.Sprintf("cannot negate unsigned integer %s", right.Name()))
-			return types.InvalidType
-		}
-		pe.SetResolvedType(right)
-		return right
-	case "!":
-		if !types.IsBoolean(right) {
-			sa.error(fmt.Sprintf("analyzePrefixExpression ! operator: type is not boolean. Got=%s", right.Name()))
-			return types.InvalidType
-		}
-		return right
-	default:
-		sa.error(fmt.Sprintf("unknown prefix operator: %s", pe.Operator))
-		return types.InvalidType
-	}
-}
-
-func (sa *SemanticAnalyzer) analyzeCallExpression(ce *ast.CallExpression) types.Type {
-	if member, ok := ce.Function.(*ast.MemberExpression); ok {
-		return sa.analyzeMemberCall(member, ce.Arguments)
+	case *ast.MemberExpression:
+		a.analyzeMemberCall(e, callee)
+		return
 	}
 
-	if ident, ok := ce.Function.(*ast.Identifier); ok {
-		if target, isBuiltinType := types.GetBuiltin(ident.Value); isBuiltinType && types.IsInteger(target) {
-			return sa.analyzeIntegerConversion(ce, target)
-		}
-		if _, declared := sa.current.Get(ident.Value); !declared && ident.Value == "len" {
-			return sa.analyzeLenCall(ce.Arguments)
-		}
+	a.analyzeExpression(e.Function)
+	calleeType := typeOf(e.Function)
+	if types.IsInvalid(calleeType) || calleeType == types.FunctionType {
+		// A value annotated `function` has no known signature to check.
+		return
 	}
 
-	calleeType := sa.analyzeExpression(ce.Function)
-	if !types.IsFunction(calleeType) {
-		sa.error("cannot call non-function")
-		return types.InvalidType
-	}
-
-	// For now, we only support calls where the callee is an identifier.
-	// This is sufficient for your current AST/parser.
-	ident, ok := ce.Function.(*ast.Identifier)
+	signature, ok := underlying(calleeType).(*types.Function)
 	if !ok {
-		sa.error("call expression: callee is not an identifier (unsupported)")
-		return types.InvalidType
+		a.errorAt(e, "cannot call non-function %s", calleeType.Name())
+		return
+	}
+	if len(e.Arguments) != len(signature.ParamTypes) {
+		a.errorAt(e, "wrong number of arguments: expected %d, got %d", len(signature.ParamTypes), len(e.Arguments))
+		return
+	}
+	for i, arg := range e.Arguments {
+		a.checkAssignable(arg, signature.ParamTypes[i], typeOf(arg), fmt.Sprintf("argument %d", i))
+	}
+}
+
+func (a *Analyzer) analyzeLenCall(e *ast.CallExpression) {
+	if len(e.Arguments) != 1 {
+		a.errorAt(e, "len expects 1 argument, got %d", len(e.Arguments))
+		return
 	}
 
-	// Look up the function symbol.
-	sym, ok := sa.current.Get(ident.Value)
-	if !ok {
-		sa.error(fmt.Sprintf("undefined function: %s", ident.Value))
-		return types.InvalidType
-	}
-
-	fs, isNamedFunction := sym.(*FunctionSymbol)
-	if !isNamedFunction {
-		if !types.IsFunction(sym.Type()) {
-			sa.error(fmt.Sprintf("symbol '%s' is not a function", ident.Value))
-			return types.InvalidType
-		}
-
-		// A `function` value is callable, but its signature is currently unknown.
-		for _, arg := range ce.Arguments {
-			sa.analyzeExpression(arg)
-		}
-
-		return types.FunctionType
-	}
-
-	// Check argument count.
-	if len(ce.Arguments) != len(fs.params) {
-		sa.error(fmt.Sprintf("wrong number of arguments: expected %d, got %d",
-			len(fs.params), len(ce.Arguments)))
-		return types.InvalidType
-	}
-
-	// Check argument types.
-	for i, p := range fs.params {
-		argType := sa.analyzeExpression(ce.Arguments[i])
-		if err := sa.requireAssignable(p.Type, argType, ce.Arguments[i]); err != nil {
-			sa.error(fmt.Sprintf("argument %d: %s", i, err.Error()))
-			return types.InvalidType
-		}
-	}
-
-	// Return the call's result type.
-	switch len(fs.returnTypes) {
-	case 0:
-		return types.VoidType
-	case 1:
-		return fs.returnTypes[0]
+	argument := typeOf(e.Arguments[0])
+	switch underlying(argument).(type) {
+	case *types.Array, *types.Slice, *types.String:
 	default:
-		return &types.Tuple{
-			Types: fs.returnTypes,
+		if !types.IsInvalid(argument) {
+			a.errorAt(e, "argument to len not supported, got %s", argument.Name())
 		}
 	}
 }
 
-func (sa *SemanticAnalyzer) analyzeIntegerConversion(call *ast.CallExpression, target types.Type) types.Type {
-	if len(call.Arguments) != 1 {
-		sa.error(fmt.Sprintf("integer conversion to %s expects 1 argument, got %d", target.Name(), len(call.Arguments)))
-		return types.InvalidType
+func (a *Analyzer) analyzeMemberCall(e *ast.CallExpression, callee *ast.MemberExpression) {
+	member, found := a.lookupMember(callee)
+	if !found {
+		return
 	}
-	actual := sa.analyzeExpression(call.Arguments[0])
-	if types.IsUntypedInteger(actual) {
-		if err := coerceIntegerConstant(call.Arguments[0], target); err != nil {
-			sa.error(err.Error())
-			return types.InvalidType
+	if member.Kind != types.MemberMethod {
+		a.errorAt(callee, "property %s is not callable", member.Name)
+		return
+	}
+	if len(e.Arguments) != len(member.Parameters) {
+		a.errorAt(e, "%s expects %d arguments, got %d", member.Name, len(member.Parameters), len(e.Arguments))
+		return
+	}
+	for i, arg := range e.Arguments {
+		a.checkAssignable(arg, member.Parameters[i], typeOf(arg), fmt.Sprintf("argument %d to %s", i, member.Name))
+	}
+
+	if receiver, ok := callee.Receiver.(*ast.Identifier); ok && member.MutatesReceiver {
+		if _, mutable := variable(symbolOf(receiver)); !mutable {
+			a.errorAt(e, "cannot call mutating method %s on immutable variable: %s", member.Name, receiver.Value)
 		}
-	} else if !types.IsInteger(actual) {
-		sa.error(fmt.Sprintf("cannot convert %s to %s", actual.Name(), target.Name()))
-		return types.InvalidType
 	}
-	call.SetResolvedType(target)
-	return target
 }
 
-func (sa *SemanticAnalyzer) analyzeIfExpression(ifExpr *ast.IfExpression, expectsValue bool) types.Type {
-	// 1. Analyze condition.
-	condType := sa.analyzeExpression(ifExpr.Condition)
-	if !types.IsBoolean(condType) {
-		sa.error("if condition must be boolean")
-		return types.InvalidType
+// lookupMember finds a member on the receiver's type, or a type function when
+// the receiver names a struct, reporting members that do not exist or are
+// private to another struct.
+func (a *Analyzer) lookupMember(e *ast.MemberExpression) (types.MemberDefinition, bool) {
+	if ident, ok := e.Receiver.(*ast.Identifier); ok {
+		if sym := symbolOf(ident); sym != nil && sym.Kind == resolver.StructSymbol {
+			structType, isStruct := typeOf(ident).(*types.Struct)
+			if !isStruct {
+				return types.MemberDefinition{}, false
+			}
+			member, exists := structType.LookupTypeMember(e.Name.Value)
+			if !exists {
+				a.errorAt(e, "type %s has no type function %s", structType.Name(), e.Name.Value)
+			}
+			return member, exists
+		}
 	}
 
-	// 2. Analyze 'then' block.
-	thenResult := sa.analyzeScopedBlock(ifExpr.Body)
+	a.analyzeExpression(e.Receiver)
+	receiver := typeOf(e.Receiver)
+	if types.IsInvalid(receiver) {
+		return types.MemberDefinition{}, false
+	}
 
-	// 3. Analyze 'else' branch if present.
-	var elseResult BlockResult
-	hasElse := ifExpr.Else != nil
-	if hasElse {
-		switch elseBranch := ifExpr.Else.(type) {
-		case *ast.BlockExpression:
-			elseResult = sa.analyzeScopedBlock(elseBranch)
-		case *ast.IfExpression:
-			// Recursively analyze else‑if; passes expectsValue down.
-			sa.enterScope()
-			elseType := sa.analyzeIfExpression(elseBranch, expectsValue)
-			sa.exitScope()
-			elseResult = BlockResult{Type: elseType, Returns: false} // approximate, may need refinement
+	provider, ok := underlying(receiver).(types.MemberProvider)
+	if !ok {
+		a.errorAt(e, "type %s has no members", receiver.Name())
+		return types.MemberDefinition{}, false
+	}
+	member, ok := provider.LookupMember(e.Name.Value)
+	if !ok {
+		a.errorAt(e, "type %s has no member %s", receiver.Name(), e.Name.Value)
+		return types.MemberDefinition{}, false
+	}
+
+	if structType, isStruct := underlying(receiver).(*types.Struct); isStruct &&
+		member.Kind == types.MemberProperty && !member.Public && structType != a.currentStruct {
+		a.errorAt(e, "field %s.%s is private", receiver.Name(), e.Name.Value)
+		return types.MemberDefinition{}, false
+	}
+
+	return member, true
+}
+
+func (a *Analyzer) analyzeIndexExpression(e *ast.IndexExpression) {
+	a.analyzeExpression(e.Left)
+	a.analyzeExpression(e.Index)
+
+	collectionType := typeOf(e.Left)
+	if types.IsInvalid(collectionType) {
+		return
+	}
+	collection, ok := underlying(collectionType).(types.Indexable)
+	if !ok {
+		a.errorAt(e, "type %s cannot be indexed", collectionType.Name())
+		return
+	}
+
+	index := typeOf(e.Index)
+	if !types.IsInvalid(index) && !sameType(collection.IndexType(), index) {
+		a.errorAt(e.Index, "index type mismatch: got %s, want %s", index.Name(), collection.IndexType().Name())
+	}
+}
+
+// branch is what an if branch produces.
+type branch struct {
+	typ     types.Type
+	yields  bool
+	returns bool
+}
+
+// analyzeIfExpression analyzes an if. As a value it needs an else, and its
+// branches must produce values of the same type unless they return.
+func (a *Analyzer) analyzeIfExpression(e *ast.IfExpression, asValue bool) branch {
+	a.analyzeExpression(e.Condition)
+	if condition := typeOf(e.Condition); !types.IsInvalid(condition) && !types.IsBoolean(condition) {
+		a.errorAt(e.Condition, "if condition must be boolean, got %s", condition.Name())
+	}
+
+	then := a.analyzeBranch(e.Body, asValue)
+	var otherwise branch
+	hasElse := e.Else != nil
+	switch elseBranch := e.Else.(type) {
+	case *ast.BlockExpression:
+		otherwise = a.analyzeBranch(elseBranch, asValue)
+	case *ast.IfExpression:
+		otherwise = a.analyzeIfExpression(elseBranch, asValue)
+	}
+
+	result := branch{returns: hasElse && then.returns && otherwise.returns}
+	if !asValue {
+		return result
+	}
+
+	switch {
+	case !hasElse:
+		a.errorAt(e, "if expression used as value requires an else branch")
+	case then.returns && otherwise.returns:
+		a.errorAt(e, "if expression branches both return, no value produced")
+	case then.returns:
+		if !otherwise.yields {
+			a.errorAt(e, "else branch must yield an expression when then branch returns")
+		}
+		result.typ, result.yields = otherwise.typ, otherwise.yields
+	case otherwise.returns:
+		if !then.yields {
+			a.errorAt(e, "then branch must yield an expression when else branch returns")
+		}
+		result.typ, result.yields = then.typ, then.yields
+	case !then.yields || !otherwise.yields:
+		a.errorAt(e, "if expression branches must end with an expression")
+	default:
+		if !types.IsInvalid(then.typ) && !types.IsInvalid(otherwise.typ) && !sameType(then.typ, otherwise.typ) {
+			a.errorAt(e, "if expression branches have mismatched types: %s vs %s", then.typ.Name(), otherwise.typ.Name())
+		}
+		result.typ, result.yields = then.typ, true
+	}
+	return result
+}
+
+// analyzeBranch analyzes a branch's statements. As a value, its final
+// expression statement is its value.
+func (a *Analyzer) analyzeBranch(block *ast.BlockExpression, asValue bool) branch {
+	if block == nil {
+		return branch{}
+	}
+
+	result := branch{returns: blockReturns(block)}
+	last := len(block.Statements) - 1
+	for i, stmt := range block.Statements {
+		if tail, ok := stmt.(*ast.ExpressionStatement); ok && asValue && i == last {
+			a.analyzeExpression(tail.Expression)
+			result.typ, result.yields = typeOf(tail.Expression), true
+			continue
+		}
+		a.analyzeStatement(stmt)
+	}
+	return result
+}
+
+// analyzeForLoop analyzes a loop. A loop used as a value must break, and its
+// breaks must agree on whether they carry a value and on its type.
+func (a *Analyzer) analyzeForLoop(loop *ast.ForLoop, asValue bool) {
+	switch c := loop.Controller.(type) {
+	case *ast.While:
+		a.analyzeExpression(c.Condition)
+		a.checkCondition(c.Condition, "while")
+	case *ast.Constructed:
+		a.analyzeStatement(c.Initializer)
+		a.analyzeExpression(c.Condition)
+		a.checkCondition(c.Condition, "loop")
+		a.analyzeStatement(c.Iterator)
+	case *ast.Range:
+		a.analyzeExpression(c.Iterable)
+		iterable := typeOf(c.Iterable)
+		switch underlying(iterable).(type) {
+		case *types.Array, *types.Slice, *types.Map:
 		default:
-			sa.error("unexpected else structure")
-			return types.InvalidType
+			if !types.IsInvalid(iterable) {
+				a.errorAt(c.Iterable, "range can only iterate over an array, slice, or map, got %s", iterable.Name())
+			}
 		}
 	}
 
-	// 4. Context-specific checks.
-	if expectsValue {
-		if !hasElse {
-			sa.error("if expression used as value requires an else branch")
-			return types.InvalidType
-		}
-
-		var overallType types.Type
-
-		switch {
-		case thenResult.Returns && elseResult.Returns:
-			// Both branches return → no value produced.
-			sa.error("if expression branches both return, no value produced")
-			return types.InvalidType
-
-		case thenResult.Returns:
-			// then returns, else must yield a value.
-			if elseResult.Type == nil {
-				sa.error("else branch must yield an expression when then branch returns")
-				return types.InvalidType
-			}
-			overallType = elseResult.Type
-
-		case elseResult.Returns:
-			// else returns, then must yield a value.
-			if thenResult.Type == nil {
-				sa.error("then branch must yield an expression when else branch returns")
-				return types.InvalidType
-			}
-			overallType = thenResult.Type
-
-		default:
-			// Neither returns: both must end with an expression and match types.
-			if thenResult.Type == nil || elseResult.Type == nil {
-				sa.error("if expression branches must end with an expression")
-				return types.InvalidType
-			}
-			if types.IsUntypedInteger(thenResult.Type) && types.IsInteger(elseResult.Type) {
-				if err := coerceIntegerConstant(thenResult.Expression, elseResult.Type); err != nil {
-					sa.error(err.Error())
-					return types.InvalidType
-				}
-				thenResult.Type = elseResult.Type
-			} else if types.IsInteger(thenResult.Type) && types.IsUntypedInteger(elseResult.Type) {
-				if err := coerceIntegerConstant(elseResult.Expression, thenResult.Type); err != nil {
-					sa.error(err.Error())
-					return types.InvalidType
-				}
-				elseResult.Type = thenResult.Type
-			}
-			if !types.IsTypesEqual(thenResult.Type, elseResult.Type) {
-				sa.error(fmt.Sprintf("if expression branches have mismatched types: %s vs %s",
-					thenResult.Type.Name(), elseResult.Type.Name()))
-				return types.InvalidType
-			}
-			overallType = thenResult.Type
-		}
-		return overallType
+	ctx := &loopContext{loop: loop}
+	a.loops = append(a.loops, ctx)
+	if loop.Body != nil {
+		a.analyzeStatements(loop.Body.Statements)
 	}
-	// Statement context: we don't care about the type, but we already validated.
-	return nil
+	a.loops = a.loops[:len(a.loops)-1]
+
+	var valueType types.Type
+	withValue, withoutValue := false, false
+	for _, brk := range ctx.breaks {
+		if brk.Value == nil {
+			withoutValue = true
+			continue
+		}
+		withValue = true
+		breakType := typeOf(brk.Value)
+		if types.IsInvalid(breakType) {
+			continue
+		}
+		if valueType != nil && !sameType(valueType, breakType) {
+			a.errorAt(brk, "break value types must match: %s and %s", valueType.Name(), breakType.Name())
+		}
+		valueType = breakType
+	}
+
+	switch {
+	case asValue && len(ctx.breaks) == 0:
+		a.errorAt(loop, "loop used as expression must have a break to exit")
+	case withValue && withoutValue:
+		a.errorAt(loop, "mixed break statements: some with values and some without")
+	}
 }
 
-func (sa *SemanticAnalyzer) analyzeIndexExpression(exp *ast.IndexExpression) types.Type {
-	lhs := sa.analyzeExpression(exp.Left)
-	indexType := sa.analyzeExpression(exp.Index)
+func (a *Analyzer) checkCondition(condition ast.Expression, kind string) {
+	if typ := typeOf(condition); !types.IsInvalid(typ) && !types.IsBoolean(typ) {
+		a.errorAt(condition, "%s condition must be boolean, got %s", kind, typ.Name())
+	}
+}
 
-	collection, ok := lhs.(types.Indexable)
+func (a *Analyzer) analyzeArrayLiteral(e *ast.ArrayLiteral) {
+	if e.Type == nil {
+		a.errorAt(e, "array literal has no element type")
+		return
+	}
+	if e.Size <= 0 {
+		a.errorAt(e, "array length must be greater than zero")
+		return
+	}
+	if len(e.Elements) > e.Size {
+		a.errorAt(e, "array length is %d, but %d elements were supplied", e.Size, len(e.Elements))
+		return
+	}
+	a.analyzeElements("array", e.Type, e.Elements)
+}
+
+func (a *Analyzer) analyzeElements(collection string, elementType types.Type, elements []ast.Expression) {
+	for i, element := range elements {
+		a.analyzeExpression(element)
+		a.checkAssignable(element, elementType, typeOf(element), fmt.Sprintf("%s element %d", collection, i))
+	}
+}
+
+func (a *Analyzer) analyzeMapLiteral(e *ast.MapLiteral) {
+	mapType, ok := e.Type.(*types.Map)
 	if !ok {
-		sa.error(fmt.Sprintf("type %s cannot be indexed", lhs.Name()))
-		return types.InvalidType
+		a.errorAt(e, "%s is not a map type", e.Type.Name())
+		return
 	}
 
-	expectedIndexType := collection.IndexType()
+	for i, pair := range e.Pairs {
+		a.analyzeExpression(pair.Key)
+		a.analyzeExpression(pair.Value)
+		a.checkAssignable(pair.Key, mapType.Key, typeOf(pair.Key), fmt.Sprintf("pair %d: key", i))
+		a.checkAssignable(pair.Value, mapType.Value, typeOf(pair.Value), fmt.Sprintf("pair %d: value", i))
+	}
+}
 
-	// If index is untyped integer and expected is integer, adopt expected type
-	if types.IsUntypedInteger(indexType) {
-		if _, ok := expectedIndexType.(*types.Integer); ok {
-			if il, ok := exp.Index.(*ast.IntegerLiteral); ok {
-				il.SetResolvedType(expectedIndexType)
-				indexType = expectedIndexType
-			}
+func (a *Analyzer) analyzeStructLiteral(e *ast.StructLiteral) {
+	for _, field := range e.Fields {
+		a.analyzeExpression(field.Value)
+	}
+
+	structType, ok := typeOf(e).(*types.Struct)
+	if !ok {
+		return
+	}
+
+	provided := make(map[string]struct{}, len(e.Fields))
+	for _, field := range e.Fields {
+		if _, duplicate := provided[field.Name.Value]; duplicate {
+			a.errorAt(field.Name, "field %s supplied more than once", field.Name.Value)
+			continue
+		}
+		provided[field.Name.Value] = struct{}{}
+
+		definition, exists := structType.Fields[field.Name.Value]
+		if !exists {
+			a.errorAt(field.Name, "type %s has no field %s", structType.Name(), field.Name.Value)
+			continue
+		}
+		a.checkAssignable(field.Value, definition.Type, typeOf(field.Value),
+			fmt.Sprintf("field %s.%s", structType.Name(), field.Name.Value))
+	}
+
+	for name, field := range structType.Fields {
+		if _, supplied := provided[name]; !supplied && !field.HasDefault {
+			a.errorAt(e, "missing required field %s.%s", structType.Name(), name)
 		}
 	}
-
-	if !types.IsAssignable(indexType, expectedIndexType) {
-		sa.error(fmt.Sprintf("index type mismatch: got %s, want %s", indexType.Name(), expectedIndexType.Name()))
-		return types.InvalidType
-	}
-
-	return collection.ElementType()
-}
-
-func (sa *SemanticAnalyzer) checkIntegerIndex(
-	exp *ast.IndexExpression,
-	indexType types.Type,
-) types.Type {
-	if types.IsUntypedInteger(indexType) {
-		resolved, err := sa.defaultInteger(exp.Index, indexType)
-		if err != nil {
-			sa.error(err.Error())
-			return types.InvalidType
-		}
-
-		if types.IsInteger(resolved) {
-			return resolved
-		}
-	}
-
-	sa.error(fmt.Sprintf("collection index must be an integer, got %s", indexType.Name()))
-	return types.InvalidType
-}
-
-func (sa *SemanticAnalyzer) analyzeLenCall(args []ast.Expression) types.Type {
-	if len(args) != 1 {
-		sa.error(fmt.Sprintf("len expects 1 argument, got %d", len(args)))
-		return types.InvalidType
-	}
-
-	argumentType := sa.analyzeExpression(args[0])
-	switch argumentType.Kind() {
-	case types.KindArray, types.KindSlice, types.KindString:
-		return types.IntType
-	default:
-		sa.error(fmt.Sprintf("argument to len not supported, got %s", argumentType.Name()))
-		return types.InvalidType
-	}
-}
-
-func (sa *SemanticAnalyzer) isInvalidInfixType(t types.Type) bool {
-	return types.IsBoolean(t) || types.IsFunction(t) || types.IsString(t)
-}
-
-func (sa *SemanticAnalyzer) isInvalidPrefixType(t types.Type) bool {
-	return !types.IsBoolean(t) && !types.IsNumeric(t)
 }

@@ -82,12 +82,9 @@ func runFile(filename string) {
 		os.Exit(1)
 	}
 
-	symbols := semantic.NewSymbolTable()
-	sa := semantic.NewSemanticAnalyzer(program, symbols)
-	saErrs := sa.Analyze()
-	if len(saErrs) > 0 {
-		for _, err := range saErrs {
-			fmt.Printf("Semantic error: %v\n", err)
+	if errs := semantic.New(program).Analyze(); len(errs) > 0 {
+		for _, errMsg := range errs {
+			fmt.Printf("Semantic error: %s\n", errMsg)
 		}
 		os.Exit(1)
 	}

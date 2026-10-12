@@ -1,6 +1,8 @@
 package evaluator
 
 import (
+	"github.com/esweby/primordial_lang/inference"
+	"github.com/esweby/primordial_lang/resolver"
 	"math/big"
 	"testing"
 
@@ -188,7 +190,7 @@ func TestForLoops(t *testing.T) {
 		{
 			name: "infinite loop with break",
 			input: `
-				x := 0;
+				mut x := 0;
 				for {
 					x = x + 1;
 					if (x == 5) { break; }
@@ -200,7 +202,7 @@ func TestForLoops(t *testing.T) {
 		{
 			name: "while loop",
 			input: `
-				x := 0;
+				mut x := 0;
 				for (x < 5) {
 					x = x + 1;
 				}
@@ -211,7 +213,7 @@ func TestForLoops(t *testing.T) {
 		{
 			name: "constructed loop",
 			input: `
-				sum := 0;
+				mut sum := 0;
 				for (i := 1; i <= 5; i = i + 1) {
 					sum = sum + i;
 				}
@@ -223,7 +225,7 @@ func TestForLoops(t *testing.T) {
 			name: "range over array",
 			input: `
 				arr := [3]int64{10, 20, 30};
-				sum: int64 := 0;
+				mut sum: int64 := 0;
 				for i, val := range arr {
 					sum = sum + val;
 				}
@@ -235,7 +237,7 @@ func TestForLoops(t *testing.T) {
 			name: "range over slice",
 			input: `
 				slice := []int64{1, 2, 3, 4};
-				sum: int64 := 0;
+				mut sum: int64 := 0;
 				for _, val := range slice {
 					sum = sum + val;
 				}
@@ -258,7 +260,7 @@ func TestForLoops(t *testing.T) {
 		{
 			name: "break with label",
 			input: `
-				x := 0;
+				mut x := 0;
 				outer: for {
 					x = x + 1;
 					for {
@@ -272,7 +274,7 @@ func TestForLoops(t *testing.T) {
 		{
 			name: "continue in constructed loop",
 			input: `
-				sum := 0;
+				mut sum := 0;
 				for (i := 1; i <= 5; i = i + 1) {
 					if (i == 3) { continue; }
 					sum = sum + i;
@@ -304,8 +306,8 @@ func TestForLoops(t *testing.T) {
 		{
 			name: "nested loops - break inner only",
 			input: `
-				outer := 0;
-				inner := 0;
+				mut outer := 0;
+				mut inner := 0;
 				for {
 					outer = outer + 1;
 					if (outer > 3) { break; }
@@ -321,8 +323,8 @@ func TestForLoops(t *testing.T) {
 		{
 			name: "labelled break to outer",
 			input: `
-				outer := 0;
-				inner := 0;
+				mut outer := 0;
+				mut inner := 0;
 				outerLabel: for {
 					outer = outer + 1;
 					for {
@@ -400,9 +402,11 @@ func testEval(input string) object.Object {
 	l := lexer.New(input)
 	p := parser.New(l)
 	program := p.ParseProgram()
-	symbols := semantic.NewSymbolTable()
-	sa := semantic.NewSemanticAnalyzer(program, symbols)
-	sa.Analyze()
+	// Errors are ignored so the evaluator's own runtime errors can be tested
+	// on programs the earlier phases would reject.
+	resolver.New(program).Resolve()
+	inference.New(program).Infer()
+	semantic.New(program).Analyze()
 	env := object.NewEnvironment()
 
 	evaluator := New(program, env)

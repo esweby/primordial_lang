@@ -23,15 +23,14 @@ const (
 // session holds the state that carries over between submissions. It is only
 // updated when a submission passes every phase.
 type session struct {
-	scope   *resolver.Scope
-	symbols *semantic.SymbolTable
-	env     *object.Environment
+	scope *resolver.Scope
+	env   *object.Environment
 }
 
 func Start(in io.Reader, out io.Writer) {
 	scanner := bufio.NewScanner(in)
 	scanner.Buffer(make([]byte, 1024), 1024*1024)
-	state := &session{symbols: semantic.NewSymbolTable(), env: object.NewEnvironment()}
+	state := &session{env: object.NewEnvironment()}
 	var submission strings.Builder
 
 	for {
@@ -88,16 +87,12 @@ func evaluateSubmission(source string, out io.Writer, state *session) {
 		return
 	}
 
-	sa := semantic.NewSemanticAnalyzer(program, state.symbols)
-	saErrs := sa.Analyze()
-
-	if len(saErrs) > 0 {
-		printSaErrors(out, saErrs)
+	if analyzeErrs := semantic.New(program).Analyze(); len(analyzeErrs) > 0 {
+		printErrors(out, analyzeErrs)
 		return
 	}
 
 	state.scope = scope
-	state.symbols = sa.Symbols()
 	evaluator := evaluator.New(program, state.env)
 	evaluated := evaluator.Evaluate()
 	if evaluated != nil {
@@ -144,11 +139,5 @@ func matchingDelimiter(open, close byte) bool {
 func printErrors(out io.Writer, errors []string) {
 	for _, msg := range errors {
 		io.WriteString(out, "\t"+msg+"\n")
-	}
-}
-
-func printSaErrors(out io.Writer, errors []error) {
-	for _, msg := range errors {
-		io.WriteString(out, "\t"+msg.Error()+"\n")
 	}
 }
