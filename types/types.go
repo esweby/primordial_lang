@@ -203,9 +203,16 @@ func (t *Tuple) Kind() Kind {
 	return KindTuple
 }
 
+// NamedSymbol is the declaration a named type refers to. It is set by the
+// resolver; the interface lives here to avoid an import cycle.
+type NamedSymbol interface {
+	Name() string
+}
+
 type Named struct {
 	CustomName string
 	Underlying Type
+	Symbol     NamedSymbol // set by the resolver
 }
 
 func (n *Named) Name() string { return n.CustomName }

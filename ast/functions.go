@@ -15,6 +15,7 @@ type FunctionStatement struct {
 	Parameters  []*Parameter
 	ReturnTypes []*ReturnType
 	Body        *BlockExpression
+	Scope       Scope // set by the resolver; shared with Body
 }
 
 func (fs *FunctionStatement) statementNode() {}
@@ -44,6 +45,7 @@ type FunctionLiteral struct {
 	Parameters  []*Parameter
 	ReturnTypes []*ReturnType
 	Body        *BlockExpression
+	Scope       Scope // set by the resolver; shared with Body
 }
 
 func (fl *FunctionLiteral) expressionNode() {}

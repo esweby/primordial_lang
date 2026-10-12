@@ -10,8 +10,9 @@ import (
 )
 
 type Identifier struct {
-	Token token.Token
-	Value string
+	Token  token.Token
+	Value  string
+	Symbol Symbol // set by the resolver
 }
 
 func (i *Identifier) expressionNode() {}
@@ -234,6 +235,7 @@ func (me *MemberExpression) String() string {
 type BlockExpression struct {
 	Token      token.Token
 	Statements []Statement
+	Scope      Scope // set by the resolver
 }
 
 func (bs *BlockExpression) expressionNode() {}
