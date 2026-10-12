@@ -44,6 +44,15 @@ func TestInfer_DeclarationTypes(t *testing.T) {
 		{`struct P { pub age: int32; impl { fn older(): int32 { return self.age + 1; } } } p := P{age: 1}; x := p.older();`, "x", "int32"},
 		{`struct P { fn make(): int64 { return 1; } } x := P.make();`, "x", "int64"},
 		{`s := []int32{1}; x := s.length;`, "x", "int64"},
+		{`x: int32 := 1; y := int64(x);`, "y", "int64"},
+		{`x := [5]int32{1, 2};`, "x", "[5]int32"},
+		{`x := [3]int32{};`, "x", "[3]int32"},
+		{`x := []int32{1, 2, 3};`, "x", "[]int32"},
+		{`x := [3]int32{}.toSlice();`, "x", "[]int32"},
+		{`x := [3]int32{}.toSlice().length;`, "x", "int64"},
+		{`struct Address { pub city: string; } struct Person { pub address: Address; } p := Person{address: Address{city: "London"}}; x := p.address.city;`, "x", "string"},
+		{`struct P { name: string; impl { fn getName(): string { return self.name; } } } p := P{name: "Ada"}; x := p.getName();`, "x", "string"},
+		{`struct P { name: string; impl { fn same(other P): bool { return self.name == other.name; } } } p := P{name: "Ada"}; x := p.same(p);`, "x", "bool"},
 	}
 
 	for _, test := range tests {
@@ -92,6 +101,20 @@ func TestInfer_IntegerErrors(t *testing.T) {
 		{`struct P { age: int8 = 300; }`, "integer constant 300 overflows int8"},
 		{`fn pair(): int32, int32 { return 1, 2; } mut a: int64 := 0; mut b: int32 := 0; (a, b) = pair();`, "cannot use int32 value as int64"},
 		{`x := 9223372036854775808;`, "integer constant 9223372036854775808 overflows int"},
+		{`x := true + 2;`, "cannot use untyped integer constant as bool"},
+		{`x := 1 + true;`, "cannot use untyped integer constant as bool"},
+		{`x := 1 + fn() {};`, "cannot use untyped integer constant as fn(): void"},
+		{`struct Person { name: string; } p := Person{name: 1};`, "cannot use untyped integer constant as string"},
+		{`struct Example { value: string = 1; }`, "cannot use untyped integer constant as string"},
+		{`struct Person { name: string; fn new(name string): Person { return Person{name}; } } Person.new(1);`, "cannot use untyped integer constant as string"},
+		{`x: int8 := -129;`, "integer constant -129 overflows int8"},
+		{`x: int8 := 128;`, "integer constant 128 overflows int8"},
+		{`x: uint8 := 256;`, "integer constant 256 overflows uint8"},
+		{`x: int64 := -9223372036854775809;`, "integer constant -9223372036854775809 overflows int64"},
+		{`x: int64 := 9223372036854775808;`, "integer constant 9223372036854775808 overflows int64"},
+		{`x: uint64 := 18446744073709551616;`, "integer constant 18446744073709551616 overflows uint64"},
+		{`x := uint8(-1);`, "integer constant -1 overflows uint8"},
+		{`x := int32(true);`, "cannot convert bool to int32"},
 		{`x := if (true) { 1 } else { true };`, "cannot use untyped integer constant as bool"},
 		{`x := lbl: for { if (true) { break lbl ("a"); } break lbl (1); };`, "cannot use untyped integer constant as string"},
 	}
@@ -174,6 +197,11 @@ func TestInfer_ValidProgramsHaveNoErrors(t *testing.T) {
 		`x := 1; if (x == 1) { 1; } else { "a"; }`,
 		`fn fib(n uint64): uint64 { if (n < 2) { return n; } return fib(n - 1) + fib(n - 2); }`,
 		`x: int8 := -128;`,
+		`x: int8 := 127;`,
+		`x: uint8 := 0;`,
+		`x: uint8 := 255;`,
+		`x: int64 := -9223372036854775808;`,
+		`x: int64 := 9223372036854775807;`,
 		`x: uint64 := 18446744073709551615;`,
 		`struct A { b: B; } struct B { pub n: int16 = 1; } a := A{b: B{}}; x := a.b.n + 1;`,
 	}
@@ -184,6 +212,59 @@ func TestInfer_ValidProgramsHaveNoErrors(t *testing.T) {
 				t.Fatalf("unexpected errors: %v", errs)
 			}
 		})
+	}
+}
+
+func TestInfer_StructFieldTypesFromDefaults(t *testing.T) {
+	program, _ := parseAndInferProgram(t, `
+		struct Address { city: string; }
+		struct Profile {
+			name = "Ada";
+			score = 42;
+			active = true;
+			address = Address{city: "London"};
+			tags = []string{"compiler"};
+			explicit: int32 = 1;
+		}
+	`)
+
+	profile := program.Statements[1].(*ast.StructStatement)
+	expected := []string{"string", "int", "bool", "Address", "[]string", "int32"}
+	for i, want := range expected {
+		field := profile.Fields[i]
+		if field.GetType() == nil || field.GetType().Name() != want {
+			t.Errorf("field %s has type %v, want %s", field.Name.Value, field.GetType(), want)
+		}
+		if inferred := field.Name.Value != "explicit"; field.Inferred != inferred {
+			t.Errorf("field %s: Inferred = %t, want %t", field.Name.Value, field.Inferred, inferred)
+		}
+	}
+}
+
+func TestInfer_NamedTypesInsideCollections(t *testing.T) {
+	program, _ := parseAndInferProgram(t, `
+		struct Team { captain: Person; members: []Person; history: [2]Person; }
+		struct Person { name: string; }
+	`)
+
+	team := program.Statements[0].(*ast.StructStatement).Name.GetResolvedType().(*types.Struct)
+	for field, want := range map[string]string{"captain": "Person", "members": "[]Person", "history": "[2]Person"} {
+		typ := team.Fields[field].Type
+		if typ.Name() != want {
+			t.Errorf("field %s has type %s, want %s", field, typ.Name(), want)
+		}
+		var named *types.Named
+		switch collection := typ.(type) {
+		case *types.Named:
+			named = collection
+		case *types.Slice:
+			named = collection.ElementType().(*types.Named)
+		case *types.Array:
+			named = collection.ElementType().(*types.Named)
+		}
+		if _, ok := named.Underlying.(*types.Struct); !ok {
+			t.Errorf("field %s: Person has no underlying struct", field)
+		}
 	}
 }
 
