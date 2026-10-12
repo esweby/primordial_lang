@@ -13,6 +13,8 @@ func (p *Parser) parseType() (types.Type, bool) {
 		return p.parseMapType()
 	case token.LBRACKET:
 		return p.parseCollectionType()
+	case token.FN:
+		return p.parseFunctionType()
 	default:
 		return p.parseCurrentType()
 	}
@@ -58,6 +60,68 @@ func (p *Parser) parseMapType() (types.Type, bool) {
 	mt.Value = vt
 
 	return mt, true
+}
+
+// parseFunctionType parses a function signature type such as fn(int64): int64.
+// Several return types are wrapped in parentheses, fn(int64): (int32, bool),
+// so a signature inside a parameter or return list is not ambiguous.
+func (p *Parser) parseFunctionType() (types.Type, bool) {
+	if !p.expectPeek(token.LPAREN) {
+		return nil, false
+	}
+
+	params, ok := p.parseTypeList(token.RPAREN)
+	if !ok {
+		return nil, false
+	}
+
+	returns := []types.Type{}
+	if p.peekTokenIs(token.COLON) {
+		p.nextToken()
+		if p.peekTokenIs(token.LPAREN) {
+			p.nextToken()
+			if returns, ok = p.parseTypeList(token.RPAREN); !ok {
+				return nil, false
+			}
+		} else {
+			p.nextToken()
+			returnType, ok := p.parseType()
+			if !ok {
+				return nil, false
+			}
+			returns = append(returns, returnType)
+		}
+	}
+
+	return types.NewFunction(params, returns), true
+}
+
+// parseTypeList parses comma separated types up to the closing token. The
+// current token is the opening token.
+func (p *Parser) parseTypeList(end token.TokenType) ([]types.Type, bool) {
+	list := []types.Type{}
+	if p.peekTokenIs(end) {
+		p.nextToken()
+		return list, true
+	}
+
+	for {
+		p.nextToken()
+		typ, ok := p.parseType()
+		if !ok {
+			return nil, false
+		}
+		list = append(list, typ)
+
+		if p.peekTokenIs(token.COMMA) {
+			p.nextToken()
+			continue
+		}
+		if !p.expectPeek(end) {
+			return nil, false
+		}
+		return list, true
+	}
 }
 
 func (p *Parser) parseCollectionType() (types.Type, bool) {

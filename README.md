@@ -39,6 +39,26 @@ y: int32 := 123;
 mut z: string := "Hello world";
 ```
 
+### Integers
+
+Integers follow Go's lead. A number on its own is an untyped constant until something gives it a type, and if nothing does it becomes an `int`. Once something has a type it keeps it, and if you want to mix integer types you convert them yourself. `int` and `uint` are 64 bit but they are their own types, not another name for `int64` and `uint64`.
+
+```
+x := 0;            // int
+y: int32 := 10;    // int32
+z := y + 1;        // int32, the 1 takes its type from y
+w := int32(x) + y; // mixing int and int32 needs a conversion
+```
+
+A constant that doesn't fit its type is caught before anything runs, so `x: int8 := 300;` won't compile.
+
+This is where I part ways with Go. Go quietly wraps around when an integer overflows at runtime, so an `int8` holding 127 plus 1 becomes -128. I'd rather know about it. In Primordial overflowing an integer stops the program with an error, the same as Swift, Zig's safe builds, and Rust in debug mode. Converting a value that doesn't fit, like `uint8(x)` when `x` is 300, does the same.
+
+```
+x: int8 := 127;
+x + 1; // error: integer overflow
+```
+
 ### Functions
 
 Functions can be declarations or assigned as values.
@@ -49,6 +69,18 @@ fn add(x int32, y int32): int32 {
 }
 
 add := fn(x int32, y int32): int32 { return x + y; }
+```
+
+A function's signature can also be used as a type, so functions passed around as values keep their parameter and return types. If there's more than one return type they go in brackets, so `fn(int64): (int32, bool)`.
+
+```
+fn apply(f fn(int64): int64, value int64): int64 {
+	return f(value);
+}
+
+newAdder := fn(x int64): fn(int64): int64 {
+	return fn(y int64): int64 { return x + y; };
+};
 ```
 
 ### If expressions
