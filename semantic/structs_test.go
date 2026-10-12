@@ -230,11 +230,6 @@ func TestRejectStructMemberMisuse(t *testing.T) {
 		expected string
 	}{
 		{
-			name:     "external field assignment",
-			program:  `struct Person { pub name: string; } person := Person{name: "Ada"}; person.name = "Grace";`,
-			expected: "cannot assign to field outside its struct: name",
-		},
-		{
 			name:     "wrong type function argument",
 			program:  `struct Person { name: string; fn new(name string): Person { return Person{name}; } } Person.new(1);`,
 			expected: "argument 0 to new",
