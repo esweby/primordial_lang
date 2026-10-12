@@ -26,13 +26,26 @@ This purposefully simplistic approach, while dilutiing the ast, also enriches it
 
 ### Inference
 
-The inference phase will be responsible for assigning a specific type where none is provided by the user. It will also be responsible for ensuring that integer types are concretely assigned within the parameters of the languages rules. It will be able to use context clues where appropriate such as the following example where x would be assigned the type int32 by using the context of y.
+The inference phase will be responsible for assigning a specific type where none is provided by the user. It will also be responsible for ensuring that integer types are concretely assigned within the parameters of the languages rules.
+
+Integers follow Go's pattern. An integer literal is an untyped constant until it meets a type, and that type comes only from the statement it appears in, never from later uses of the variable. Once a variable has a type it is fixed.
+
+- An untyped constant takes the type of whatever it is used with: a declared type, the other side of an operator, a parameter, a return type, or a collection's element type.
+- If there is no such context the constant defaults to `int`.
+- A constant that does not fit the type it is given is an error, e.g. `x: int8 := 300;`.
+- `int` and `uint` are their own 64-bit types, distinct from `int64` and `uint64`.
+- There are no implicit conversions between integer types. Mixing them requires an explicit conversion such as `int32(x)`.
+- `len()` and range indexes produce `int`.
+
+In the following example x is an `int`, so adding it to an `int32` is an error.
 
 ```
-x := 0;
-y: int32 := 10;
+x := 0;            // x is int
+y: int32 := 10;    // 10 takes the declared type int32
 
-z := x + y;
+z := x + y;        // error: mismatched types int and int32
+a := int32(x) + y; // a is int32
+w := y + 1;        // 1 takes the type of y, so w is int32
 ```
 
 ### Analyzer
