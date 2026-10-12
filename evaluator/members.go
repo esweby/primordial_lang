@@ -181,11 +181,9 @@ func (e *Evaluator) evalMemberAssignment(
 	if field == nil {
 		return newError("struct %s has no field %s", receiver.Name, target.Name.Value)
 	}
+	// Public fields are settable from anywhere; private ones only inside their struct.
 	if !field.Public && !e.hasStructAccess(receiver, env) {
 		return newError("field %s.%s is private", receiver.Name, target.Name.Value)
-	}
-	if !e.hasStructAccess(receiver, env) {
-		return newError("cannot assign to field outside its struct: %s", target.Name.Value)
 	}
 
 	value := e.eval(valueExpression, env)

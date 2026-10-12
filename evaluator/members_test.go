@@ -138,9 +138,9 @@ func TestEvalRejectsInvalidStructFieldAccess(t *testing.T) {
 			expected: "field Person.name is private",
 		},
 		{
-			name:     "external write",
-			input:    `struct Person { pub name: string; } person := Person{name: "Ada"}; person.name = "Grace";`,
-			expected: "cannot assign to field outside its struct: name",
+			name:     "private write",
+			input:    `struct Person { name: string; } person := Person{name: "Ada"}; person.name = "Grace";`,
+			expected: "field Person.name is private",
 		},
 	}
 
@@ -155,12 +155,20 @@ func TestEvalRejectsInvalidStructFieldAccess(t *testing.T) {
 	}
 }
 
+func TestEvalAssignsPublicFieldFromOutside(t *testing.T) {
+	evaluated := testEval(`struct Person { pub name: string; } person := Person{name: "Ada"}; person.name = "Grace"; person.name`)
+	str, ok := evaluated.(*object.String)
+	if !ok || str.Value != "Grace" {
+		t.Fatalf("expected Grace, got %T (%v)", evaluated, evaluated)
+	}
+}
+
 func TestMemberSliceAppend(t *testing.T) {
 	tests := []struct {
 		input  string
 		output []int64
 	}{
-		{`ages := []int64{20, 32, 45}; ages.append(19); ages`, []int64{20, 32, 45, 19}},
+		{`mut ages := []int64{20, 32, 45}; ages.append(19); ages`, []int64{20, 32, 45, 19}},
 	}
 
 	for i, tt := range tests {
