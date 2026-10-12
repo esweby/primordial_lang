@@ -13,6 +13,7 @@ type ForLoop struct {
 	Controller ForController
 	Body       *BlockExpression
 	Scope      Scope // set by the resolver; shared with Body
+	Typed
 }
 
 func (fl *ForLoop) expressionNode() {}

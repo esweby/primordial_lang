@@ -14,6 +14,7 @@ type ArrayLiteral struct {
 	Type     types.Type
 	Size     int
 	Elements []Expression
+	Typed
 }
 
 func (al *ArrayLiteral) expressionNode() {}
@@ -40,6 +41,7 @@ type SliceLiteral struct {
 	Type     types.Type
 	Size     int
 	Elements []Expression
+	Typed
 }
 
 func (sl *SliceLiteral) expressionNode() {}
@@ -112,6 +114,7 @@ type IndexExpression struct {
 	Left      Expression
 	Index     Expression
 	IndexType *types.Type
+	Typed
 }
 
 func (ie *IndexExpression) expressionNode() {}
