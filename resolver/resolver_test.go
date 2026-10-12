@@ -262,6 +262,35 @@ func TestResolver_NamedTypesLinkToStruct(t *testing.T) {
 	}
 }
 
+func TestResolver_ContinuingKeepsEarlierDeclarations(t *testing.T) {
+	first, firstScope := mustResolve(t, `x := 1; struct P { pub n: int32; }`)
+
+	second := parse(t, `y := x; p := P{n: 1};`)
+	secondScope, errs := NewContinuing(second, firstScope).Resolve()
+	if len(errs) > 0 {
+		t.Fatalf("resolver errors: %v", errs)
+	}
+
+	use := second.Statements[0].(*ast.DeclareStatement).Value.(*ast.Identifier)
+	if use.Symbol.Declaration() != first.Statements[0] {
+		t.Fatal("x should resolve to the declaration in the earlier program")
+	}
+	if _, ok := firstScope.GetLocal("y"); ok {
+		t.Fatal("the earlier scope should not gain later declarations")
+	}
+	if _, ok := secondScope.GetLocal("y"); !ok {
+		t.Fatal("the new scope should hold later declarations")
+	}
+
+	failed := parse(t, `z := 1; x := 2;`)
+	if _, errs := NewContinuing(failed, secondScope).Resolve(); !containsError(errs, "variable 'x' already declared in this scope") {
+		t.Fatalf("redeclaring an earlier name should fail, got %v", errs)
+	}
+	if _, ok := secondScope.GetLocal("z"); ok {
+		t.Fatal("a failed program should not change the scope it continued from")
+	}
+}
+
 func mustResolve(t *testing.T, input string) (*ast.Program, *Scope) {
 	t.Helper()
 	program := parse(t, input)

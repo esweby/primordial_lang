@@ -7,10 +7,12 @@ import (
 	"os/user"
 
 	"github.com/esweby/primordial_lang/evaluator"
+	"github.com/esweby/primordial_lang/inference"
 	"github.com/esweby/primordial_lang/lexer"
 	"github.com/esweby/primordial_lang/object"
 	"github.com/esweby/primordial_lang/parser"
 	"github.com/esweby/primordial_lang/repl"
+	"github.com/esweby/primordial_lang/resolver"
 	"github.com/esweby/primordial_lang/semantic"
 )
 
@@ -62,6 +64,20 @@ func runFile(filename string) {
 	if len(p.Errors()) > 0 {
 		for _, errMsg := range p.Errors() {
 			fmt.Printf("Parse error: %s\n", errMsg)
+		}
+		os.Exit(1)
+	}
+
+	if _, errs := resolver.New(program).Resolve(); len(errs) > 0 {
+		for _, errMsg := range errs {
+			fmt.Printf("Resolve error: %s\n", errMsg)
+		}
+		os.Exit(1)
+	}
+
+	if errs := inference.New(program).Infer(); len(errs) > 0 {
+		for _, errMsg := range errs {
+			fmt.Printf("Type error: %s\n", errMsg)
 		}
 		os.Exit(1)
 	}
