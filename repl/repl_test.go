@@ -40,15 +40,6 @@ func TestRuntimeFailuresReturnErrorsInsteadOfPanicking(t *testing.T) {
 			input:    "1 / 0\n",
 			expected: "division by zero",
 		},
-		{
-			name: "higher order arity mismatch",
-			input: strings.Join([]string{
-				`fn invoke(f function) { f(); }`,
-				`fn needs(x int64) { x; }`,
-				`invoke(needs)`,
-			}, "\n"),
-			expected: "ERROR: wrong number of arguments: expected 1, got 0",
-		},
 	}
 
 	for _, test := range tests {
@@ -58,6 +49,18 @@ func TestRuntimeFailuresReturnErrorsInsteadOfPanicking(t *testing.T) {
 				t.Fatalf("expected output to contain %q, got %q", test.expected, output)
 			}
 		})
+	}
+}
+
+func TestHigherOrderCallsAreCheckedBeforeRunning(t *testing.T) {
+	untyped := runREPL("fn invoke(f function) { f(); }\n")
+	if !strings.Contains(untyped, "cannot call a value of type function") {
+		t.Fatalf("expected calls through function to be rejected, got %q", untyped)
+	}
+
+	typed := runREPL("fn invoke(f fn(int64)) { f(); }\n")
+	if !strings.Contains(typed, "wrong number of arguments: expected 1, got 0") {
+		t.Fatalf("expected the arity mismatch to be caught before running, got %q", typed)
 	}
 }
 
