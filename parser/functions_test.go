@@ -223,3 +223,58 @@ func parseFunctionStatement(t *testing.T, input string) *ast.FunctionStatement {
 
 	return function
 }
+
+func TestParseFunctionTypes(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{`f: fn(int64): int64 := g;`, "fn(int64): int64"},
+		{`f: fn() := g;`, "fn(): void"},
+		{`f: fn(int32, string): bool := g;`, "fn(int32, string): bool"},
+		{`f: fn(int32): (int32, bool) := g;`, "fn(int32): (int32, bool)"},
+		{`f: fn(fn(int8): int8): fn(): int8 := g;`, "fn(fn(int8): int8): fn(): int8"},
+		{`f: fn([]int32, map[string]int64): [2]bool := g;`, "fn([]int32, map[string]int64): [2]bool"},
+		{`f: function := g;`, "function"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			p := New(lexer.New(tt.input))
+			program := p.ParseProgram()
+			requireNoParserErrors(t, p)
+
+			stmt, ok := program.Statements[0].(*ast.DeclareStatement)
+			if !ok {
+				t.Fatalf("expected a declaration, got %T", program.Statements[0])
+			}
+			if stmt.Type.Name() != tt.want {
+				t.Fatalf("type is %s, want %s", stmt.Type.Name(), tt.want)
+			}
+		})
+	}
+}
+
+func TestParseFunctionTypesInSignatures(t *testing.T) {
+	p := New(lexer.New(`fn apply(f fn(int64): int64, xs []int64): fn(int64): int64, bool { return f, true; }`))
+	program := p.ParseProgram()
+	requireNoParserErrors(t, p)
+
+	fn := program.Statements[0].(*ast.FunctionStatement)
+	params := []string{"fn(int64): int64", "[]int64"}
+	for i, want := range params {
+		if got := fn.Parameters[i].Type.Name(); got != want {
+			t.Errorf("parameter %d has type %s, want %s", i, got, want)
+		}
+	}
+
+	returns := []string{"fn(int64): int64", "bool"}
+	if len(fn.ReturnTypes) != len(returns) {
+		t.Fatalf("expected %d return types, got %d", len(returns), len(fn.ReturnTypes))
+	}
+	for i, want := range returns {
+		if got := fn.ReturnTypes[i].Type.Name(); got != want {
+			t.Errorf("return %d has type %s, want %s", i, got, want)
+		}
+	}
+}

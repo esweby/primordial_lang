@@ -115,7 +115,7 @@ func (p *Parser) parseFunctionParameters() ([]*ast.Parameter, error) {
 		param.Name = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
 
 		p.nextToken()
-		paramType, ok := p.parseCurrentType()
+		paramType, ok := p.parseType()
 		if !ok {
 			return nil, fmt.Errorf("expected parameter type for %s", param.Name.Value)
 		}
@@ -153,12 +153,7 @@ func (p *Parser) parseReturnTypes() ([]*ast.ReturnType, error) {
 
 	returnTypes := []*ast.ReturnType{}
 	for {
-		if !p.curTokenIs(token.IDENT) {
-			p.addDiagnostic("P1204", "expected return type, found "+describeToken(p.curToken), p.curToken, token.IDENT)
-			return nil, fmt.Errorf("expected return type, found %s", describeToken(p.curToken))
-		}
-
-		returnType, ok := p.parseCurrentType()
+		returnType, ok := p.parseType()
 		if !ok {
 			return nil, fmt.Errorf("unknown type %s", p.curToken.Literal)
 		}

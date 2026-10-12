@@ -120,6 +120,10 @@ type Function struct {
 }
 
 func (fn *Function) Name() string {
+	if fn == FunctionType {
+		return "function"
+	}
+
 	var out bytes.Buffer
 
 	out.WriteString("fn(")
@@ -130,12 +134,14 @@ func (fn *Function) Name() string {
 	out.WriteString(strings.Join(params, ", "))
 	out.WriteString("): ")
 
-	if len(fn.ReturnTypes) > 0 {
+	if len(fn.ReturnTypes) == 1 {
+		out.WriteString(fn.ReturnTypes[0].Name())
+	} else if len(fn.ReturnTypes) > 1 {
 		rt := []string{}
 		for _, r := range fn.ReturnTypes {
 			rt = append(rt, r.Name())
 		}
-		out.WriteString(strings.Join(rt, ", "))
+		out.WriteString("(" + strings.Join(rt, ", ") + ")")
 	} else {
 		out.WriteString("void")
 	}

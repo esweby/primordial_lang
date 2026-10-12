@@ -49,6 +49,9 @@ func TestInfer_DeclarationTypes(t *testing.T) {
 		{`x := [3]int32{};`, "x", "[3]int32"},
 		{`x := []int32{1, 2, 3};`, "x", "[]int32"},
 		{`x := [3]int32{}.toSlice();`, "x", "[]int32"},
+		{`newAdder := fn(x int64): fn(int64): int64 { return fn(y int64): int64 { return x + y; }; }; addFive := newAdder(5); x := addFive(5);`, "x", "int64"},
+		{`fn apply(f fn(int8): int8, v int8): int8 { return f(v); } x := apply(fn(n int8): int8 { return n; }, 3);`, "x", "int8"},
+		{`f: fn(): (int32, bool) := fn(): int32, bool { return 1, true; }; (x, ok) := f();`, "x", "int32"},
 		{`x := [3]int32{}.toSlice().length;`, "x", "int"},
 		{`struct Address { pub city: string; } struct Person { pub address: Address; } p := Person{address: Address{city: "London"}}; x := p.address.city;`, "x", "string"},
 		{`struct P { name: string; impl { fn getName(): string { return self.name; } } } p := P{name: "Ada"}; x := p.getName();`, "x", "string"},
@@ -115,6 +118,8 @@ func TestInfer_IntegerErrors(t *testing.T) {
 		{`x: uint64 := 18446744073709551616;`, "integer constant 18446744073709551616 overflows uint64"},
 		{`x := uint8(-1);`, "integer constant -1 overflows uint8"},
 		{`x := int32(true);`, "cannot convert bool to int32"},
+		{`fn apply(f fn(int8): int8): int8 { return f(300); }`, "integer constant 300 overflows int8"},
+		{`f: fn(uint8) := fn(n uint8) {}; f(-1);`, "integer constant -1 overflows uint8"},
 		{`x := if (true) { 1 } else { true };`, "cannot use untyped integer constant as bool"},
 		{`x := lbl: for { if (true) { break lbl ("a"); } break lbl (1); };`, "cannot use untyped integer constant as string"},
 	}

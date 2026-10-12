@@ -101,6 +101,19 @@ func TestFunctionClosures(t *testing.T) {
 			addFive := newAdder(5);
 			addFive(5);
 		`, 10},
+		{`
+			newAdder := fn(x int64): fn(int64): int64 {
+				return fn(y int64): int64 {
+					return x + y;
+				};
+			};
+			addFive := newAdder(5);
+			addFive(5) + 1;
+		`, 11},
+		{`
+			fn apply(f fn(int32): int32, value int32): int32 { return f(value); }
+			apply(fn(n int32): int32 { return n * 3; }, 7);
+		`, 21},
 	}
 
 	for _, tt := range tests {

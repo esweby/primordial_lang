@@ -34,6 +34,10 @@ func TestAnalyze_ValidPrograms(t *testing.T) {
 		`fn add(x int32, y int32) { return; }`,
 		`fn sign(x int32): int32 { if (x < 0) { return -1; } else if (x > 0) { return 1; } else { return 0; } }`,
 		`newAdder := fn(x int64): function { return fn(y int64): int64 { return x + y; }; }; addFive := newAdder(5); addFive(5);`,
+		`newAdder := fn(x int64): fn(int64): int64 { return fn(y int64): int64 { return x + y; }; }; addFive := newAdder(5); total := addFive(5) + 1;`,
+		`fn apply(f fn(int64): int64, v int64): int64 { return f(v); } double := fn(n int64): int64 { return n * 2; }; x := apply(double, 4);`,
+		`f: function := fn(n int32): int32 { return n; };`,
+		`fn store(f function) {} store(fn(n int32): int32 { return n; });`,
 		`for {}`,
 		`for (1 < 2) {}`,
 		`for (x := 1; x < 10; x = x + 1) {}`,
@@ -101,6 +105,10 @@ func TestAnalyze_Errors(t *testing.T) {
 		{`len(1)`, "argument to len not supported, got int"},
 		{`len()`, "len expects 1 argument, got 0"},
 		{`x := len;`, "builtin len must be called"},
+		{`fn apply(f fn(int64): int64) {} apply(fn(n int32): int32 { return n; });`, "argument 0: expected fn(int64): int64, got fn(int32): int32"},
+		{`fn apply(f fn(int64): int64) {} fn wrap(g function) { apply(g); }`, "argument 0: expected fn(int64): int64, got function"},
+		{`f: fn(string) := fn(n int32) {};`, "declaration type mismatch: expected fn(string): void, got fn(int32): void"},
+		{`f: fn(string) := fn(s string) {}; f("a", "b");`, "wrong number of arguments: expected 1, got 2"},
 
 		// If and loops
 		{`brian := if (2) { 1 + 2 } else { 1 - 0 }`, "if condition must be boolean, got int"},
