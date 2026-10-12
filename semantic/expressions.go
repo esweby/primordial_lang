@@ -140,8 +140,11 @@ func (a *Analyzer) analyzeCallExpression(e *ast.CallExpression) {
 
 	a.analyzeExpression(e.Function)
 	calleeType := typeOf(e.Function)
-	if types.IsInvalid(calleeType) || calleeType == types.FunctionType {
-		// A value annotated `function` has no known signature to check.
+	if types.IsInvalid(calleeType) {
+		return
+	}
+	if calleeType == types.FunctionType {
+		a.errorAt(e, "cannot call a value of type function; give it a signature type such as fn(int64): int64")
 		return
 	}
 

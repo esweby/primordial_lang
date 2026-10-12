@@ -93,15 +93,6 @@ func TestFunctionClosures(t *testing.T) {
 		output int64
 	}{
 		{`
-			newAdder := fn(x int64): function {
-				return fn(y int64): int64 {
-					return x + y;
-				};
-			};
-			addFive := newAdder(5);
-			addFive(5);
-		`, 10},
-		{`
 			newAdder := fn(x int64): fn(int64): int64 {
 				return fn(y int64): int64 {
 					return x + y;
