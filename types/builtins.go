@@ -1,6 +1,9 @@
 package types
 
-import "math/big"
+import (
+	"math/big"
+	"slices"
+)
 
 var InvalidType = &Invalid{}
 var BoolType = &Bool{}
@@ -64,12 +67,50 @@ func NeutralValue(t Type) (any, bool) {
 }
 
 // Maybe a better name
+//
+// Two structs are only the same type if they are the same declaration, as a
+// shadowing struct can share its name with the struct it hides.
 func IsTypesEqual(a, b Type) bool {
 	if a == nil || b == nil {
 		return false
 	}
 
-	return a.Name() == b.Name()
+	a, b = unwrapNamed(a), unwrapNamed(b)
+	switch left := a.(type) {
+	case *Struct:
+		return a == b
+	case *Array:
+		right, ok := b.(*Array)
+		return ok && left.length == right.length && IsTypesEqual(left.elementType, right.elementType)
+	case *Slice:
+		right, ok := b.(*Slice)
+		return ok && IsTypesEqual(left.elementType, right.elementType)
+	case *Map:
+		right, ok := b.(*Map)
+		return ok && IsTypesEqual(left.Key, right.Key) && IsTypesEqual(left.Value, right.Value)
+	case *Tuple:
+		right, ok := b.(*Tuple)
+		return ok && slices.EqualFunc(left.Types, right.Types, IsTypesEqual)
+	case *Function:
+		right, ok := b.(*Function)
+		if left == FunctionType || right == FunctionType {
+			return a == b
+		}
+		return ok && slices.EqualFunc(left.ParamTypes, right.ParamTypes, IsTypesEqual) &&
+			slices.EqualFunc(left.ReturnTypes, right.ReturnTypes, IsTypesEqual)
+	default:
+		return a.Name() == b.Name()
+	}
+}
+
+func unwrapNamed(t Type) Type {
+	for {
+		named, ok := t.(*Named)
+		if !ok {
+			return t
+		}
+		t = named.Underlying
+	}
 }
 
 func IsInvalid(t Type) bool {

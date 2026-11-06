@@ -116,3 +116,21 @@ func TestIntegerMetadataAndBounds(t *testing.T) {
 		})
 	}
 }
+
+func TestStructEqualityUsesTheDeclaration(t *testing.T) {
+	first, second := &Struct{TypeName: "P"}, &Struct{TypeName: "P"}
+	named := &Named{CustomName: "P", Underlying: first}
+
+	if !IsTypesEqual(first, named) {
+		t.Errorf("a named type should equal the struct it refers to")
+	}
+	if IsTypesEqual(first, second) {
+		t.Errorf("different declarations should not be equal")
+	}
+	if IsTypesEqual(NewSlice(first), NewSlice(second)) {
+		t.Errorf("slices of different declarations should not be equal")
+	}
+	if !IsTypesEqual(NewSlice(first), NewSlice(named)) {
+		t.Errorf("slices of the same declaration should be equal")
+	}
+}
