@@ -246,17 +246,16 @@ func (p *Parser) parseBreakStatement() ast.Statement {
 		Token: p.curToken,
 	}
 
-	p.nextToken()
-
-	if p.curTokenIs(token.IDENT) {
+	if p.peekTokenIs(token.IDENT) {
+		p.nextToken()
 		breakStmt.Label = &ast.Identifier{
 			Token: p.curToken,
 			Value: p.curToken.Literal,
 		}
-		p.nextToken()
 	}
 
-	if p.curTokenIs(token.LPAREN) {
+	if p.peekTokenIs(token.LPAREN) {
+		p.nextToken()
 		p.nextToken()
 		expr := p.parseExpression(LOWEST)
 
@@ -268,11 +267,11 @@ func (p *Parser) parseBreakStatement() ast.Statement {
 			return nil
 		}
 
-		if !p.expectPeek(token.SEMICOLON) {
-			return nil
-		}
-
 		breakStmt.Value = expr
+	}
+
+	if p.peekTokenIs(token.SEMICOLON) {
+		p.nextToken()
 	}
 
 	return breakStmt
