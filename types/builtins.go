@@ -37,7 +37,6 @@ var builtins = map[string]Type{
 	"float64":  Float64Type,
 	"string":   StringType,
 	"function": FunctionType,
-	"void":     VoidType,
 }
 
 func GetBuiltin(typeName string) (Type, bool) {

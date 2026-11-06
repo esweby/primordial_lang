@@ -52,9 +52,19 @@ func (a *Analyzer) analyzeExpressionStatement(stmt *ast.ExpressionStatement) {
 
 func (a *Analyzer) analyzeDeclareStatement(stmt *ast.DeclareStatement) {
 	a.analyzeExpression(stmt.Value)
+	if isVoidCall(stmt.Value) {
+		a.errorAt(stmt, "cannot declare %s from a call that returns nothing", stmt.Name.Value)
+		return
+	}
 	if stmt.Type != nil && !stmt.Inferred {
 		a.checkAssignable(stmt, stmt.Type, typeOf(stmt.Value), "declaration type mismatch")
 	}
+}
+
+// isVoidCall reports a call with no return value, which has nothing to store.
+func isVoidCall(expr ast.Expression) bool {
+	_, isCall := expr.(*ast.CallExpression)
+	return isCall && types.IsVoid(typeOf(expr))
 }
 
 func (a *Analyzer) analyzeTupleDeclareStatement(stmt *ast.TupleDeclareStatement) {
@@ -224,6 +234,10 @@ func (a *Analyzer) analyzeStructStatement(stmt *ast.StructStatement) {
 		}
 		if field.Value != nil {
 			a.analyzeExpression(field.Value)
+			if isVoidCall(field.Value) {
+				a.errorAt(field.Value, "default value for %s.%s is a call that returns nothing", name, field.Name.Value)
+				continue
+			}
 			if field.Type != nil && !field.Inferred {
 				a.checkAssignable(field.Value, field.Type, typeOf(field.Value),
 					fmt.Sprintf("default value for %s.%s", name, field.Name.Value))
