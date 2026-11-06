@@ -89,7 +89,7 @@ func TestResolver_Errors(t *testing.T) {
 		{`if (true) { y := 1; } z := y;`, "undefined identifier: y"},
 		{`for (i := 0; i < 1; i = i + 1) {} j := i;`, "undefined identifier: i"},
 		{`fn f(a int32) {} b := a;`, "undefined identifier: a"},
-		{`fn f() { g(); } fn g() {}`, "undefined identifier: g"},
+		{`fn h() { fn f() { g(); } fn g() {} }`, "undefined identifier: g"},
 		{`break;`, "break outside of loop"},
 		{`continue;`, "continue outside of loop"},
 		{`if (true) { break; }`, "break outside of loop"},
