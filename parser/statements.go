@@ -148,7 +148,15 @@ func (p *Parser) parseReturnStatement() *ast.ReturnStatement {
 
 func (p *Parser) parseExpressionStatement() ast.Statement {
 	stmt := &ast.ExpressionStatement{Token: p.curToken}
-	stmt.Expression = p.parseExpression(LOWEST)
+
+	// An if or for statement ends at its closing brace, so a next line starting
+	// with - or ( is a new statement rather than a subtraction or a call.
+	precedence := LOWEST
+	if p.curTokenIs(token.IF) || p.curTokenIs(token.FOR) {
+		precedence = INDEX
+	}
+
+	stmt.Expression = p.parseExpression(precedence)
 	if stmt.Expression == nil {
 		return nil
 	}
