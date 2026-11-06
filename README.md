@@ -161,12 +161,12 @@ struct Person {
     pub name: string; // externally mutable
 
     // static methods
-    fn new(age int32, name: string): Person {
+    fn new(age int32, name string): Person {
     	// supports short form
         return Person{
         	age,
             name,
-        }
+        };
     }
 
     // impl block is for initialized methods
