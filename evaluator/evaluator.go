@@ -48,7 +48,18 @@ func (e *Evaluator) Evaluate() object.Object {
 		// no program provided
 		return nil
 	}
+	e.declareFunctions(program.Statements, e.env)
 	return e.evalProgram(program.Statements, e.env)
+}
+
+// declareFunctions defines every top-level function first, so a function can
+// be called before its declaration.
+func (e *Evaluator) declareFunctions(stmts []ast.Statement, env *object.Environment) {
+	for _, stmt := range stmts {
+		if s, ok := stmt.(*ast.FunctionStatement); ok {
+			e.eval(s, env)
+		}
+	}
 }
 
 func (e *Evaluator) evalProgram(stmts []ast.Statement, env *object.Environment) object.Object {

@@ -107,9 +107,12 @@ func (r *Resolver) resolveStatements(stmts []ast.Statement) {
 }
 
 // resolveFunctionStatement declares the function before resolving its body so
-// that it can call itself.
+// that it can call itself. Top-level functions are already declared.
 func (r *Resolver) resolveFunctionStatement(stmt *ast.FunctionStatement) {
-	sym := r.declare(stmt.Name, FunctionSymbol, stmt)
+	sym, predeclared := r.predeclared[stmt]
+	if !predeclared {
+		sym = r.declare(stmt.Name, FunctionSymbol, stmt)
+	}
 	body := r.resolveFunction(stmt, stmt.Token, stmt.Parameters, stmt.ReturnTypes, stmt.Body, nil)
 	stmt.Scope = body
 	if sym != nil {
@@ -117,13 +120,15 @@ func (r *Resolver) resolveFunctionStatement(stmt *ast.FunctionStatement) {
 	}
 }
 
-// predeclareStructs declares every struct in a statement list up front so
-// that structs can be referenced before their declaration.
-func (r *Resolver) predeclareStructs(stmts []ast.Statement) {
+// predeclare declares every struct and function in a statement list up front
+// so that they can be referenced before their declaration.
+func (r *Resolver) predeclare(stmts []ast.Statement) {
 	for _, stmt := range stmts {
-		if s, ok := stmt.(*ast.StructStatement); ok {
-			r.predeclared[s] = struct{}{}
-			r.declare(s.Name, StructSymbol, s)
+		switch s := stmt.(type) {
+		case *ast.StructStatement:
+			r.predeclared[s] = r.declare(s.Name, StructSymbol, s)
+		case *ast.FunctionStatement:
+			r.predeclared[s] = r.declare(s.Name, FunctionSymbol, s)
 		}
 	}
 }

@@ -210,8 +210,19 @@ func (in *Inferrer) declareStructs(stmts []ast.Statement) {
 	for _, s := range declared {
 		in.declareStructMembers(s)
 	}
+	in.declareFunctions(stmts)
 	for _, s := range declared {
 		in.inferStructDefaults(s)
+	}
+}
+
+// declareFunctions types every function in a statement list, so a function can
+// be called before its declaration.
+func (in *Inferrer) declareFunctions(stmts []ast.Statement) {
+	for _, stmt := range stmts {
+		if s, ok := stmt.(*ast.FunctionStatement); ok {
+			s.Name.SetResolvedType(in.functionSignature(s.Parameters, s.ReturnTypes))
+		}
 	}
 }
 

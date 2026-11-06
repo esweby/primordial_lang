@@ -28,7 +28,7 @@ type Resolver struct {
 	errors     []string
 
 	previous    *Scope
-	predeclared map[*ast.StructStatement]struct{}
+	predeclared map[ast.Statement]*Symbol
 }
 
 func New(program *ast.Program) *Resolver {
@@ -44,7 +44,7 @@ func New(program *ast.Program) *Resolver {
 		loopLabels: []string{},
 		errors:     []string{},
 
-		predeclared: make(map[*ast.StructStatement]struct{}),
+		predeclared: make(map[ast.Statement]*Symbol),
 	}
 }
 
@@ -79,7 +79,7 @@ func (r *Resolver) Resolve() (*Scope, []string) {
 		}
 	}
 
-	r.predeclareStructs(r.program.Statements)
+	r.predeclare(r.program.Statements)
 	for _, stmt := range r.program.Statements {
 		r.resolveStatement(stmt)
 	}
