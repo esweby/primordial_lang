@@ -12,12 +12,12 @@ func (e *Evaluator) evalExpression(exprNode ast.Node, env *object.Environment) o
 	switch node := exprNode.(type) {
 	case *ast.IndexExpression:
 		left := e.eval(node.Left, env)
-		if isError(left) {
+		if interrupted(left) {
 			return left
 		}
 
 		index := e.eval(node.Index, env)
-		if isError(index) {
+		if interrupted(index) {
 			return index
 		}
 
@@ -30,7 +30,7 @@ func (e *Evaluator) evalExpression(exprNode ast.Node, env *object.Environment) o
 		return e.evalArrayLiteral(node, env)
 	case *ast.SliceLiteral:
 		elements := e.evalExpressions(node.Elements, env)
-		if len(elements) == 1 && isError(elements[0]) {
+		if len(elements) == 1 && interrupted(elements[0]) {
 			return elements[0]
 		}
 
@@ -68,17 +68,17 @@ func (e *Evaluator) evalExpression(exprNode ast.Node, env *object.Environment) o
 		return e.nativeBoolToBooleanObject(node.Value)
 	case *ast.PrefixExpression:
 		right := e.eval(node.Right, env)
-		if isError(right) {
+		if interrupted(right) {
 			return right
 		}
 		return e.evalPrefixExpression(node.Operator, right)
 	case *ast.InfixExpression:
 		left := e.eval(node.Left, env)
-		if isError(left) {
+		if interrupted(left) {
 			return left
 		}
 		right := e.eval(node.Right, env)
-		if isError(right) {
+		if interrupted(right) {
 			return right
 		}
 		return e.evalInfixExpression(node.Operator, left, right)
@@ -98,12 +98,12 @@ func (e *Evaluator) evalCallExpression(call *ast.CallExpression, env *object.Env
 	}
 
 	function := e.eval(call.Function, env)
-	if isError(function) {
+	if interrupted(function) {
 		return function
 	}
 
 	args := e.evalExpressions(call.Arguments, env)
-	if len(args) == 1 && isError(args[0]) {
+	if len(args) == 1 && interrupted(args[0]) {
 		return args[0]
 	}
 
@@ -128,7 +128,7 @@ func (e *Evaluator) evalArrayLiteral(
 	env *object.Environment,
 ) object.Object {
 	elements := e.evalExpressions(arr.Elements, env)
-	if len(elements) == 1 && isError(elements[0]) {
+	if len(elements) == 1 && interrupted(elements[0]) {
 		return elements[0]
 	}
 
@@ -163,7 +163,7 @@ func (e *Evaluator) evalExpressions(args []ast.Expression, env *object.Environme
 	var result []object.Object
 	for _, expr := range args {
 		evaluated := e.evalValue(expr, env)
-		if isError(evaluated) {
+		if interrupted(evaluated) {
 			return []object.Object{evaluated}
 		}
 		result = append(result, evaluated)
@@ -271,7 +271,7 @@ func (e *Evaluator) unwrapReturnValue(obj object.Object) object.Object {
 
 func (e *Evaluator) evalIfExpression(ie *ast.IfExpression, env *object.Environment) object.Object {
 	condition := e.eval(ie.Condition, env)
-	if isError(condition) {
+	if interrupted(condition) {
 		return condition
 	}
 	if e.isTruthy(condition) {
@@ -335,7 +335,7 @@ func (e *Evaluator) evalForLoop(node *ast.ForLoop, env *object.Environment, expe
 	case *ast.Infinite:
 		for {
 			bodyResult := e.eval(node.Body, loopEnv)
-			if isError(bodyResult) {
+			if isError(bodyResult) || isReturn(bodyResult) {
 				return bodyResult
 			}
 			if br, ok := bodyResult.(*object.Break); ok {
@@ -360,14 +360,14 @@ func (e *Evaluator) evalForLoop(node *ast.ForLoop, env *object.Environment, expe
 	case *ast.While:
 		for {
 			cond := e.eval(ctrl.Condition, loopEnv)
-			if isError(cond) {
+			if interrupted(cond) {
 				return cond
 			}
 			if !e.isTruthy(cond) {
 				break
 			}
 			bodyResult := e.eval(node.Body, loopEnv)
-			if isError(bodyResult) {
+			if isError(bodyResult) || isReturn(bodyResult) {
 				return bodyResult
 			}
 			if br, ok := bodyResult.(*object.Break); ok {
@@ -393,14 +393,14 @@ func (e *Evaluator) evalForLoop(node *ast.ForLoop, env *object.Environment, expe
 		e.eval(ctrl.Initializer, loopEnv)
 		for {
 			cond := e.eval(ctrl.Condition, loopEnv)
-			if isError(cond) {
+			if interrupted(cond) {
 				return cond
 			}
 			if !e.isTruthy(cond) {
 				break
 			}
 			bodyResult := e.eval(node.Body, loopEnv)
-			if isError(bodyResult) {
+			if isError(bodyResult) || isReturn(bodyResult) {
 				return bodyResult
 			}
 			if br, ok := bodyResult.(*object.Break); ok {
@@ -428,7 +428,7 @@ func (e *Evaluator) evalForLoop(node *ast.ForLoop, env *object.Environment, expe
 
 	case *ast.Range:
 		iterableObj := e.eval(ctrl.Iterable, loopEnv)
-		if isError(iterableObj) {
+		if interrupted(iterableObj) {
 			return iterableObj
 		}
 		elements := e.iterableToElements(iterableObj)
@@ -442,7 +442,7 @@ func (e *Evaluator) evalForLoop(node *ast.ForLoop, env *object.Environment, expe
 				}
 			}
 			bodyResult := e.eval(node.Body, loopEnv)
-			if isError(bodyResult) {
+			if isError(bodyResult) || isReturn(bodyResult) {
 				return bodyResult
 			}
 			if br, ok := bodyResult.(*object.Break); ok {
@@ -596,7 +596,7 @@ func (e *Evaluator) evalStringInfixExpression(operator string, left, right objec
 // a value that does not fit.
 func (e *Evaluator) evalIntegerConversion(call *ast.CallExpression, target types.Type, env *object.Environment) object.Object {
 	value := e.eval(call.Arguments[0], env)
-	if isError(value) {
+	if interrupted(value) {
 		return value
 	}
 	integer, ok := value.(*object.Integer)

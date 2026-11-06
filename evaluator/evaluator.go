@@ -114,6 +114,23 @@ func isError(obj object.Object) bool {
 	return obj != nil && obj.Type() == object.ERROR_OBJ
 }
 
+func isReturn(obj object.Object) bool {
+	_, ok := obj.(*object.ReturnValue)
+	return ok
+}
+
+// interrupted reports a result that stops the expression being evaluated: an
+// error, or a return, break or continue on its way out of a block used as a
+// value.
+func interrupted(obj object.Object) bool {
+	switch obj.(type) {
+	case *object.Error, *object.ReturnValue, *object.Break, *object.Continue:
+		return true
+	default:
+		return false
+	}
+}
+
 func neutralObject(t types.Type) (object.Object, bool) {
 	switch t.Kind() {
 	case types.KindInteger:
