@@ -51,9 +51,11 @@ func (in *Inferrer) inferDeclareStatement(stmt *ast.DeclareStatement) {
 
 	// The name is typed before the body so a function literal can call itself.
 	if fnLit, ok := stmt.Value.(*ast.FunctionLiteral); ok {
-		signature := in.functionSignature(fnLit.Parameters, fnLit.ReturnTypes)
-		stmt.Name.SetResolvedType(signature)
-		if stmt.Type == nil {
+		if stmt.Type != nil {
+			stmt.Name.SetResolvedType(stmt.Type)
+		} else {
+			signature := in.functionSignature(fnLit.Parameters, fnLit.ReturnTypes)
+			stmt.Name.SetResolvedType(signature)
 			stmt.SetInferredType(signature)
 		}
 		in.inferFunctionLiteral(fnLit)
