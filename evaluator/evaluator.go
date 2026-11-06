@@ -52,8 +52,18 @@ func (e *Evaluator) Evaluate() object.Object {
 }
 
 func (e *Evaluator) evalProgram(stmts []ast.Statement, env *object.Environment) object.Object {
+	// Top-level structs can be used before their declaration.
+	for _, stmt := range stmts {
+		if s, ok := stmt.(*ast.StructStatement); ok {
+			e.eval(s, env)
+		}
+	}
+
 	var result object.Object
 	for _, stmt := range stmts {
+		if _, ok := stmt.(*ast.StructStatement); ok {
+			continue
+		}
 		result = e.eval(stmt, env)
 		switch result.(type) {
 		case *object.ReturnValue, *object.Error, *object.Break, *object.Continue:
