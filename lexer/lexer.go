@@ -44,7 +44,7 @@ func (l *Lexer) readChar() {
 func (l *Lexer) NextToken() token.Token {
 	var tok token.Token
 
-	l.skipWhitespace()
+	l.skipIgnored()
 	start := l.currentPosition()
 
 	switch l.ch {
@@ -194,9 +194,20 @@ func (l *Lexer) readString() (string, bool) {
 	}
 }
 
-func (l *Lexer) skipWhitespace() {
-	for l.ch == ' ' || l.ch == '\t' || l.ch == '\n' || l.ch == '\r' {
-		l.readChar()
+// skipIgnored skips whitespace and // comments, which run to the end of the
+// line.
+func (l *Lexer) skipIgnored() {
+	for {
+		switch {
+		case l.ch == ' ' || l.ch == '\t' || l.ch == '\n' || l.ch == '\r':
+			l.readChar()
+		case l.ch == '/' && l.peekChar() == '/':
+			for l.ch != '\n' && l.ch != 0 {
+				l.readChar()
+			}
+		default:
+			return
+		}
 	}
 }
 
