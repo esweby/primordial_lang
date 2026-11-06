@@ -418,6 +418,14 @@ func (a *Analyzer) analyzeArrayLiteral(e *ast.ArrayLiteral) {
 		a.errorAt(e, "array length is %d, but %d elements were supplied", e.Size, len(e.Elements))
 		return
 	}
+	if len(e.Elements) < e.Size {
+		switch e.Type.Kind() {
+		case types.KindInteger, types.KindString, types.KindBoolean:
+		default:
+			a.errorAt(e, "array of %s has no neutral value, so all %d elements must be supplied", e.Type.Name(), e.Size)
+			return
+		}
+	}
 	a.analyzeElements("array", e.Type, e.Elements)
 }
 
