@@ -206,6 +206,6 @@ go test ./...
 
 There is a more structured [language specification](specification/Language%20Specification.md). Both are working documents, not sacred texts.
 
-Implementation documentation and retrospectives lives in [`documentation`](documentation/README.md).
+Implementation documentation and retrospectives lives in [`documentation`](documentation).
 
 This is an ambitious solo hobby project. Good enough is good enough—until it becomes interesting to make it better.
