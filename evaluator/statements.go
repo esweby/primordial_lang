@@ -215,11 +215,52 @@ func (e *Evaluator) evalIndexAssignment(
 		return lhs
 	}
 
-	m, ok := lhs.(*object.Map)
-	if !ok {
+	switch collection := lhs.(type) {
+	case *object.Map:
+		return e.evalMapAssignment(collection, target, valueExpression, env)
+	case *object.Array:
+		return e.evalElementAssignment(collection.Elements, target, valueExpression, env)
+	case *object.Slice:
+		return e.evalElementAssignment(collection.Elements, target, valueExpression, env)
+	default:
 		return internalError("index assignment into %s", lhs.Type())
 	}
+}
 
+// evalElementAssignment replaces an element of an array or slice.
+func (e *Evaluator) evalElementAssignment(
+	elements []object.Object,
+	target *ast.IndexExpression,
+	valueExpression ast.Expression,
+	env *object.Environment,
+) object.Object {
+	index := e.eval(target.Index, env)
+	if isError(index) {
+		return index
+	}
+	integer, ok := index.(*object.Integer)
+	if !ok {
+		return internalError("index assignment with %s", index.Type())
+	}
+
+	value := e.eval(valueExpression, env)
+	if isError(value) {
+		return value
+	}
+
+	if !integer.Value.IsInt64() || integer.Value.Sign() < 0 || integer.Value.Int64() >= int64(len(elements)) {
+		return newError("array index out of bounds: %s", integer.Value.String())
+	}
+	elements[integer.Value.Int64()] = value
+	return nil
+}
+
+func (e *Evaluator) evalMapAssignment(
+	m *object.Map,
+	target *ast.IndexExpression,
+	valueExpression ast.Expression,
+	env *object.Environment,
+) object.Object {
 	index := e.eval(target.Index, env)
 	if isError(index) {
 		return index
