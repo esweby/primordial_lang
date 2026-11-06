@@ -222,8 +222,13 @@ func (e *Evaluator) evalMapIndexExpression(m, index object.Object) object.Object
 func (e *Evaluator) applyFunction(fn object.Object, args []object.Object) object.Object {
 	switch fn := fn.(type) {
 	case *object.Function:
+		if e.callDepth >= maxCallDepth {
+			return newError("stack overflow: calls nested more than %d deep", maxCallDepth)
+		}
 		extendedEnv := e.extendFunctionEnv(fn, args)
+		e.callDepth++
 		evaluated := e.eval(fn.Body, extendedEnv)
+		e.callDepth--
 		if isError(evaluated) {
 			return evaluated
 		}

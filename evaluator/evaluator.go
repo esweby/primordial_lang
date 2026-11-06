@@ -14,6 +14,11 @@ var (
 	FALSE = &object.Boolean{Value: false}
 )
 
+// maxCallDepth is how deeply calls can nest. Each call uses several Go frames,
+// so this stops well short of Go's own stack limit, which cannot be recovered
+// from.
+const maxCallDepth = 100000
+
 // Evaluator runs a program that has passed the resolver, inference and the
 // analyzer. It trusts that checking: names exist, types match and every
 // integer has its concrete type, so the only errors it reports are ones that
@@ -22,6 +27,8 @@ var (
 type Evaluator struct {
 	node ast.Node
 	env  *object.Environment
+
+	callDepth int
 }
 
 func New(node ast.Node, env *object.Environment) *Evaluator {
