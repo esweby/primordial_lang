@@ -13,7 +13,7 @@ func (e *Evaluator) evalMemberProperty(
 	env *object.Environment,
 ) object.Object {
 	receiver := e.eval(exp.Receiver, env)
-	if isError(receiver) {
+	if interrupted(receiver) {
 		return receiver
 	}
 
@@ -41,12 +41,12 @@ func (e *Evaluator) evalMemberCall(
 	env *object.Environment,
 ) object.Object {
 	receiver := e.eval(exp.Receiver, env)
-	if isError(receiver) {
+	if interrupted(receiver) {
 		return receiver
 	}
 
 	args := e.evalExpressions(arguments, env)
-	if len(args) == 1 && isError(args[0]) {
+	if len(args) == 1 && interrupted(args[0]) {
 		return args[0]
 	}
 
@@ -87,7 +87,7 @@ func (e *Evaluator) evalMemberAssignment(
 	env *object.Environment,
 ) object.Object {
 	receiverObject := e.eval(target.Receiver, env)
-	if isError(receiverObject) {
+	if interrupted(receiverObject) {
 		return receiverObject
 	}
 	receiver, ok := receiverObject.(*object.Struct)
@@ -96,7 +96,7 @@ func (e *Evaluator) evalMemberAssignment(
 	}
 
 	value := e.eval(valueExpression, env)
-	if isError(value) {
+	if interrupted(value) {
 		return value
 	}
 	receiver.Fields[target.Name.Value] = value

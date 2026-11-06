@@ -57,7 +57,7 @@ func (e *Evaluator) evalValue(expr ast.Expression, env *object.Environment) obje
 
 func (e *Evaluator) evalDeclareStatement(stmt *ast.DeclareStatement, env *object.Environment) object.Object {
 	value := e.evalValue(stmt.Value, env)
-	if isError(value) {
+	if interrupted(value) {
 		return value
 	}
 	env.Set(stmt.Name.Value, value)
@@ -73,7 +73,7 @@ func (e *Evaluator) evalAssignStatement(stmt *ast.AssignStatement, env *object.E
 	}
 
 	value := e.evalValue(stmt.Value, env)
-	if isError(value) {
+	if interrupted(value) {
 		return value
 	}
 	if _, ok := env.Assign(stmt.Name.Value, value); !ok {
@@ -84,7 +84,7 @@ func (e *Evaluator) evalAssignStatement(stmt *ast.AssignStatement, env *object.E
 
 func (e *Evaluator) evalTupleDeclaration(stmt *ast.TupleDeclareStatement, env *object.Environment) object.Object {
 	value := e.eval(stmt.Value, env)
-	if isError(value) {
+	if interrupted(value) {
 		return value
 	}
 
@@ -103,7 +103,7 @@ func (e *Evaluator) evalTupleDeclaration(stmt *ast.TupleDeclareStatement, env *o
 
 func (e *Evaluator) evalTupleAssignment(stmt *ast.TupleAssignStatement, env *object.Environment) object.Object {
 	value := e.eval(stmt.Value, env)
-	if isError(value) {
+	if interrupted(value) {
 		return value
 	}
 
@@ -125,7 +125,7 @@ func (e *Evaluator) evalReturnStatement(rs *ast.ReturnStatement, env *object.Env
 
 	for _, v := range rs.ReturnValues {
 		value := e.eval(v, env)
-		if isError(value) {
+		if interrupted(value) {
 			return value
 		}
 		values = append(values, value)
@@ -157,7 +157,7 @@ func (e *Evaluator) evalStructLiteral(literal *ast.StructLiteral, env *object.En
 			evaluationEnv = definition.Env
 		}
 		value := e.eval(expression, evaluationEnv)
-		if isError(value) {
+		if interrupted(value) {
 			return value
 		}
 		fields[declared.Name.Value] = value
@@ -178,7 +178,7 @@ func (e *Evaluator) evalMapLiteral(m *ast.MapLiteral, env *object.Environment) o
 
 	for _, pair := range m.Pairs {
 		key := e.eval(pair.Key, env)
-		if isError(key) {
+		if interrupted(key) {
 			return key
 		}
 		hashable, ok := key.(object.Hashable)
@@ -187,7 +187,7 @@ func (e *Evaluator) evalMapLiteral(m *ast.MapLiteral, env *object.Environment) o
 		}
 
 		value := e.eval(pair.Value, env)
-		if isError(value) {
+		if interrupted(value) {
 			return value
 		}
 
@@ -211,7 +211,7 @@ func (e *Evaluator) evalIndexAssignment(
 	env *object.Environment,
 ) object.Object {
 	lhs := e.eval(target.Left, env)
-	if isError(lhs) {
+	if interrupted(lhs) {
 		return lhs
 	}
 
@@ -221,7 +221,7 @@ func (e *Evaluator) evalIndexAssignment(
 	}
 
 	index := e.eval(target.Index, env)
-	if isError(index) {
+	if interrupted(index) {
 		return index
 	}
 	hashable, ok := index.(object.Hashable)
@@ -230,7 +230,7 @@ func (e *Evaluator) evalIndexAssignment(
 	}
 
 	value := e.eval(valueExpression, env)
-	if isError(value) {
+	if interrupted(value) {
 		return value
 	}
 
@@ -252,7 +252,7 @@ func (e *Evaluator) evalBreakStatement(node *ast.BreakStatement, env *object.Env
 	var value object.Object
 	if node.Value != nil {
 		value = e.eval(node.Value, env)
-		if isError(value) {
+		if interrupted(value) {
 			return value
 		}
 	}
