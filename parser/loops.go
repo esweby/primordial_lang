@@ -1,22 +1,14 @@
 package parser
 
 import (
-	"fmt"
-
 	"github.com/esweby/primordial_lang/ast"
 	"github.com/esweby/primordial_lang/token"
 )
 
 func (p *Parser) parseLabelledForStatement() ast.Statement {
-	fmt.Printf("DEBUG: parseLabelledForStatement called, curToken=%s peekToken=%s\n",
-		p.curToken.Literal, p.peekToken.Literal)
 	exprStmt := &ast.ExpressionStatement{Token: p.curToken}
 
-	forLoop := p.parseForExpression()
-	if forLoop == nil {
-		fmt.Println("DEBUG: parseForExpression returned nil")
-	}
-	exprStmt.Expression = forLoop
+	exprStmt.Expression = p.parseForExpression()
 	return exprStmt
 }
 
@@ -40,9 +32,6 @@ func (p *Parser) parseForExpression() ast.Expression {
 	}
 
 	if !p.curTokenIs(token.FOR) {
-		fmt.Println("DEBUG: parseForExpression returning nil at token.FOR")
-		fmt.Printf("DEBUG: parseForExpression, curToken=%s peekToken=%s\n",
-			p.curToken.Literal, p.peekToken.Literal)
 		// expecting for token error
 		return nil
 	}
