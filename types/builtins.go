@@ -1,6 +1,9 @@
 package types
 
-import "math/big"
+import (
+	"math/big"
+	"slices"
+)
 
 var InvalidType = &Invalid{}
 var BoolType = &Bool{}
@@ -88,28 +91,17 @@ func IsTypesEqual(a, b Type) bool {
 		return ok && IsTypesEqual(left.Key, right.Key) && IsTypesEqual(left.Value, right.Value)
 	case *Tuple:
 		right, ok := b.(*Tuple)
-		return ok && allTypesEqual(left.Types, right.Types)
+		return ok && slices.EqualFunc(left.Types, right.Types, IsTypesEqual)
 	case *Function:
 		right, ok := b.(*Function)
 		if left == FunctionType || right == FunctionType {
 			return a == b
 		}
-		return ok && allTypesEqual(left.ParamTypes, right.ParamTypes) && allTypesEqual(left.ReturnTypes, right.ReturnTypes)
+		return ok && slices.EqualFunc(left.ParamTypes, right.ParamTypes, IsTypesEqual) &&
+			slices.EqualFunc(left.ReturnTypes, right.ReturnTypes, IsTypesEqual)
 	default:
 		return a.Name() == b.Name()
 	}
-}
-
-func allTypesEqual(a, b []Type) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if !IsTypesEqual(a[i], b[i]) {
-			return false
-		}
-	}
-	return true
 }
 
 func unwrapNamed(t Type) Type {
