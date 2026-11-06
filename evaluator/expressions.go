@@ -53,6 +53,8 @@ func (e *Evaluator) evalExpression(exprNode ast.Node, env *object.Environment) o
 		return e.evalBlock(node, env)
 	case *ast.IfExpression:
 		return e.evalIfExpression(node, env)
+	case *ast.ForLoop:
+		return e.evalForLoop(node, env, true)
 
 	// Expressions
 	case *ast.Identifier:
