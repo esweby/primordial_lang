@@ -65,12 +65,61 @@ func NeutralValue(t Type) (any, bool) {
 }
 
 // Maybe a better name
+//
+// Two structs are only the same type if they are the same declaration, as a
+// shadowing struct can share its name with the struct it hides.
 func IsTypesEqual(a, b Type) bool {
 	if a == nil || b == nil {
 		return false
 	}
 
-	return a.Name() == b.Name()
+	a, b = unwrapNamed(a), unwrapNamed(b)
+	switch left := a.(type) {
+	case *Struct:
+		return a == b
+	case *Array:
+		right, ok := b.(*Array)
+		return ok && left.length == right.length && IsTypesEqual(left.elementType, right.elementType)
+	case *Slice:
+		right, ok := b.(*Slice)
+		return ok && IsTypesEqual(left.elementType, right.elementType)
+	case *Map:
+		right, ok := b.(*Map)
+		return ok && IsTypesEqual(left.Key, right.Key) && IsTypesEqual(left.Value, right.Value)
+	case *Tuple:
+		right, ok := b.(*Tuple)
+		return ok && allTypesEqual(left.Types, right.Types)
+	case *Function:
+		right, ok := b.(*Function)
+		if left == FunctionType || right == FunctionType {
+			return a == b
+		}
+		return ok && allTypesEqual(left.ParamTypes, right.ParamTypes) && allTypesEqual(left.ReturnTypes, right.ReturnTypes)
+	default:
+		return a.Name() == b.Name()
+	}
+}
+
+func allTypesEqual(a, b []Type) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if !IsTypesEqual(a[i], b[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func unwrapNamed(t Type) Type {
+	for {
+		named, ok := t.(*Named)
+		if !ok {
+			return t
+		}
+		t = named.Underlying
+	}
 }
 
 func IsInvalid(t Type) bool {
