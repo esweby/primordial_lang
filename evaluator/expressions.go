@@ -390,7 +390,9 @@ func (e *Evaluator) evalForLoop(node *ast.ForLoop, env *object.Environment, expe
 		}
 
 	case *ast.Constructed:
-		e.eval(ctrl.Initializer, loopEnv)
+		if initResult := e.eval(ctrl.Initializer, loopEnv); isError(initResult) {
+			return initResult
+		}
 		for {
 			cond := e.eval(ctrl.Condition, loopEnv)
 			if isError(cond) {
@@ -417,13 +419,10 @@ func (e *Evaluator) evalForLoop(node *ast.ForLoop, env *object.Environment, expe
 					return bodyResult
 				}
 			}
-			if _, ok := bodyResult.(*object.Continue); ok {
-				// Execute iterator and continue
-				e.eval(ctrl.Iterator, loopEnv)
-				continue
+			// The iterator runs after a continue as well.
+			if iterResult := e.eval(ctrl.Iterator, loopEnv); isError(iterResult) {
+				return iterResult
 			}
-			// Normal: execute iterator
-			e.eval(ctrl.Iterator, loopEnv)
 		}
 
 	case *ast.Range:
