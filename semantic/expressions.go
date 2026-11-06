@@ -435,6 +435,13 @@ func (a *Analyzer) analyzeMapLiteral(e *ast.MapLiteral) {
 		return
 	}
 
+	switch underlying(mapType.Key).Kind() {
+	case types.KindInteger, types.KindString, types.KindBoolean:
+	default:
+		a.errorAt(e, "type %s cannot be a map key", mapType.Key.Name())
+		return
+	}
+
 	for i, pair := range e.Pairs {
 		a.analyzeExpression(pair.Key)
 		a.analyzeExpression(pair.Value)
