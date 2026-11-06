@@ -96,6 +96,7 @@ func TestResolver_Errors(t *testing.T) {
 		{`for { f := fn() { break; }; }`, "break outside of loop"},
 		{`a: for { break b; }`, "break label 'b' does not match any enclosing loop"},
 		{`a: for {} for { break a; }`, "break label 'a' does not match any enclosing loop"},
+		{`a: for { continue b; }`, "continue label 'b' does not match any enclosing loop"},
 		{`x: Missing := 1;`, "unknown type: Missing"},
 		{`fn f(p Missing) {}`, "unknown type: Missing"},
 		{`fn f(): Missing {}`, "unknown type: Missing"},

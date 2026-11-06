@@ -498,3 +498,26 @@ func testIsConstructedLoop(t *testing.T, forLoop *ast.ForLoop, testNum int) (ast
 
 	return rangeLoop, true
 }
+
+func TestContinueStatementLabel(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{`a: for { continue a; }`, "continue a"},
+		{`a: for { continue a }`, "continue a"},
+		{`for { continue }`, "continue"},
+	}
+
+	for _, tt := range tests {
+		p := New(lexer.New(tt.input))
+		program := p.ParseProgram()
+		if errs := p.Errors(); len(errs) > 0 {
+			t.Fatalf("%s: parser errors: %v", tt.input, errs)
+		}
+		loop := program.Statements[0].(*ast.ExpressionStatement).Expression.(*ast.ForLoop)
+		if actual := loop.Body.Statements[0].String(); actual != tt.expected {
+			t.Errorf("%s: expected %q, got %q", tt.input, tt.expected, actual)
+		}
+	}
+}

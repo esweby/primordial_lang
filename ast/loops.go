@@ -149,6 +149,7 @@ func (bs *BreakStatement) String() string {
 
 type ContinueStatement struct {
 	Token token.Token
+	Label *Identifier
 }
 
 func (cs *ContinueStatement) statementNode() {}
@@ -158,5 +159,8 @@ func (cs *ContinueStatement) TokenLiteral() string {
 }
 
 func (cs *ContinueStatement) String() string {
+	if cs.Label != nil {
+		return "continue " + cs.Label.String()
+	}
 	return "continue"
 }

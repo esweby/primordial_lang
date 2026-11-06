@@ -228,14 +228,16 @@ func (p *Parser) parseContinueStatement() ast.Statement {
 		Token: p.curToken,
 	}
 
-	p.nextToken()
-
-	if !p.curTokenIs(token.SEMICOLON) {
+	if p.peekTokenIs(token.IDENT) {
 		p.nextToken()
-		if p.curTokenIs(token.EOF) {
-			return continueStmt
+		continueStmt.Label = &ast.Identifier{
+			Token: p.curToken,
+			Value: p.curToken.Literal,
 		}
+	}
 
+	if p.peekTokenIs(token.SEMICOLON) {
+		p.nextToken()
 	}
 
 	return continueStmt
