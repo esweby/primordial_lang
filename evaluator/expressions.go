@@ -69,12 +69,18 @@ func (e *Evaluator) evalExpression(exprNode ast.Node, env *object.Environment) o
 	case *ast.Boolean:
 		return e.nativeBoolToBooleanObject(node.Value)
 	case *ast.PrefixExpression:
+		if node.Constant != nil {
+			return newIntegerObject(node.Constant, node.GetResolvedType())
+		}
 		right := e.eval(node.Right, env)
 		if interrupted(right) {
 			return right
 		}
 		return e.evalPrefixExpression(node.Operator, right)
 	case *ast.InfixExpression:
+		if node.Constant != nil {
+			return newIntegerObject(node.Constant, node.GetResolvedType())
+		}
 		left := e.eval(node.Left, env)
 		if interrupted(left) {
 			return left

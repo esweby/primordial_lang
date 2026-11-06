@@ -99,6 +99,7 @@ type PrefixExpression struct {
 	Token    token.Token
 	Operator string
 	Right    Expression
+	Constant *big.Int // the folded value, when inference finds a constant
 	Typed
 }
 
@@ -123,6 +124,7 @@ type InfixExpression struct {
 	Left     Expression
 	Operator string
 	Right    Expression
+	Constant *big.Int // the folded value, when inference finds a constant
 	Typed
 }
 

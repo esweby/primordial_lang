@@ -109,6 +109,7 @@ func (in *Inferrer) convertUntyped(expr ast.Expression, target types.Type) types
 			in.errorAt(expr, "%s", err.Error())
 		}
 		setConstantType(expr, target)
+		setConstantValue(expr, value)
 		return target
 	}
 
@@ -169,6 +170,17 @@ func setConstantType(expr ast.Expression, target types.Type) {
 	case *ast.InfixExpression:
 		setConstantType(e.Left, target)
 		setConstantType(e.Right, target)
+	}
+}
+
+// setConstantValue records a folded constant so the evaluator uses it instead
+// of working through the expression, whose steps may not fit the type.
+func setConstantValue(expr ast.Expression, value *big.Int) {
+	switch e := expr.(type) {
+	case *ast.PrefixExpression:
+		e.Constant = value
+	case *ast.InfixExpression:
+		e.Constant = value
 	}
 }
 
