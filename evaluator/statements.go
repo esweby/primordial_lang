@@ -192,9 +192,11 @@ func (e *Evaluator) evalMapLiteral(m *ast.MapLiteral, env *object.Environment) o
 		}
 
 		hk := hashable.HashKey()
+		if _, exists := pairs[hk]; !exists {
+			keys = append(keys, hk)
+			originalKeys[hk] = key
+		}
 		pairs[hk] = value
-		originalKeys[hk] = key
-		keys = append(keys, hk)
 	}
 
 	return &object.Map{
