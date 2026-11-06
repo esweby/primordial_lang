@@ -21,7 +21,6 @@ var TupleType = &Tuple{}
 var VoidType = &Void{}
 
 var builtins = map[string]Type{
-	"invalid":  InvalidType,
 	"bool":     BoolType,
 	"int":      IntType,
 	"uint":     UIntType,
