@@ -40,7 +40,7 @@ func (e *Evaluator) evalStatement(stmtNode ast.Node, env *object.Environment) ob
 	case *ast.BreakStatement:
 		return e.evalBreakStatement(node, env)
 	case *ast.ContinueStatement:
-		return &object.Continue{}
+		return evalContinueStatement(node)
 	}
 
 	return nil
@@ -242,6 +242,13 @@ func (e *Evaluator) evalIndexAssignment(
 	m.Pairs[hk] = value
 
 	return m
+}
+
+func evalContinueStatement(node *ast.ContinueStatement) object.Object {
+	if node.Label != nil {
+		return &object.Continue{Label: node.Label.Value}
+	}
+	return &object.Continue{}
 }
 
 func (e *Evaluator) evalBreakStatement(node *ast.BreakStatement, env *object.Environment) object.Object {

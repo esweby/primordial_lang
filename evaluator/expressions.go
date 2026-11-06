@@ -321,7 +321,7 @@ func (e *Evaluator) evalForLoop(node *ast.ForLoop, env *object.Environment, expe
 	var result object.Object
 	var hasResult bool
 
-	matchesBreak := func(label string) bool {
+	matchesLabel := func(label string) bool {
 		if label == "" {
 			return true
 		}
@@ -338,8 +338,12 @@ func (e *Evaluator) evalForLoop(node *ast.ForLoop, env *object.Environment, expe
 			if isError(bodyResult) {
 				return bodyResult
 			}
+
+			if ct, ok := bodyResult.(*object.Continue); ok && !matchesLabel(ct.Label) {
+				return bodyResult
+			}
 			if br, ok := bodyResult.(*object.Break); ok {
-				if matchesBreak(br.Label) {
+				if matchesLabel(br.Label) {
 					if br.Value != nil {
 						if expectsValue {
 							return br.Value
@@ -370,8 +374,12 @@ func (e *Evaluator) evalForLoop(node *ast.ForLoop, env *object.Environment, expe
 			if isError(bodyResult) {
 				return bodyResult
 			}
+
+			if ct, ok := bodyResult.(*object.Continue); ok && !matchesLabel(ct.Label) {
+				return bodyResult
+			}
 			if br, ok := bodyResult.(*object.Break); ok {
-				if matchesBreak(br.Label) {
+				if matchesLabel(br.Label) {
 					if br.Value != nil {
 						if expectsValue {
 							return br.Value
@@ -403,8 +411,12 @@ func (e *Evaluator) evalForLoop(node *ast.ForLoop, env *object.Environment, expe
 			if isError(bodyResult) {
 				return bodyResult
 			}
+
+			if ct, ok := bodyResult.(*object.Continue); ok && !matchesLabel(ct.Label) {
+				return bodyResult
+			}
 			if br, ok := bodyResult.(*object.Break); ok {
-				if matchesBreak(br.Label) {
+				if matchesLabel(br.Label) {
 					if br.Value != nil {
 						if expectsValue {
 							return br.Value
@@ -445,8 +457,12 @@ func (e *Evaluator) evalForLoop(node *ast.ForLoop, env *object.Environment, expe
 			if isError(bodyResult) {
 				return bodyResult
 			}
+
+			if ct, ok := bodyResult.(*object.Continue); ok && !matchesLabel(ct.Label) {
+				return bodyResult
+			}
 			if br, ok := bodyResult.(*object.Break); ok {
-				if matchesBreak(br.Label) {
+				if matchesLabel(br.Label) {
 					if br.Value != nil {
 						if expectsValue {
 							return br.Value

@@ -290,7 +290,9 @@ func (b *Break) Inspect() string {
 	return out.String()
 }
 
-type Continue struct{}
+type Continue struct {
+	Label string
+}
 
 func (c *Continue) Type() ObjectType { return CONTINUE_OBJ }
 func (c *Continue) Inspect() string  { return "continue" }

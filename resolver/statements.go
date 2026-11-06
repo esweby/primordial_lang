@@ -165,5 +165,7 @@ func (r *Resolver) resolveBreakStatement(stmt *ast.BreakStatement) {
 func (r *Resolver) resolveContinueStatement(stmt *ast.ContinueStatement) {
 	if r.loopDepth == 0 {
 		r.errorAt(stmt.Token, "continue outside of loop")
+	} else if stmt.Label != nil && !slices.Contains(r.loopLabels, stmt.Label.Value) {
+		r.errorAt(stmt.Label.Token, "continue label '%s' does not match any enclosing loop", stmt.Label.Value)
 	}
 }
