@@ -99,7 +99,7 @@ func (e *Evaluator) evalMemberAssignment(
 	if interrupted(value) {
 		return value
 	}
-	receiver.Fields[target.Name.Value] = value
+	receiver.Fields[target.Name.Value] = copyValue(value)
 	return nil
 }
 

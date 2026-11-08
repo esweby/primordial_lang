@@ -60,7 +60,7 @@ func (e *Evaluator) evalDeclareStatement(stmt *ast.DeclareStatement, env *object
 	if interrupted(value) {
 		return value
 	}
-	env.Set(stmt.Name.Value, value)
+	env.Set(stmt.Name.Value, copyValue(value))
 	return nil
 }
 
@@ -76,7 +76,7 @@ func (e *Evaluator) evalAssignStatement(stmt *ast.AssignStatement, env *object.E
 	if interrupted(value) {
 		return value
 	}
-	if _, ok := env.Assign(stmt.Name.Value, value); !ok {
+	if _, ok := env.Assign(stmt.Name.Value, copyValue(value)); !ok {
 		return internalError("assignment to undeclared variable %s", stmt.Name.Value)
 	}
 	return nil
@@ -94,7 +94,7 @@ func (e *Evaluator) evalTupleDeclaration(stmt *ast.TupleDeclareStatement, env *o
 	}
 	for i, name := range stmt.Names {
 		if name.Value != "_" {
-			env.Set(name.Value, tuple.Elements[i])
+			env.Set(name.Value, copyValue(tuple.Elements[i]))
 		}
 	}
 
@@ -113,7 +113,7 @@ func (e *Evaluator) evalTupleAssignment(stmt *ast.TupleAssignStatement, env *obj
 	}
 	for i, name := range stmt.Names {
 		if name.Value != "_" {
-			env.Assign(name.Value, tuple.Elements[i])
+			env.Assign(name.Value, copyValue(tuple.Elements[i]))
 		}
 	}
 
@@ -253,7 +253,7 @@ func (e *Evaluator) evalElementAssignment(
 	if !integer.Value.IsInt64() || integer.Value.Sign() < 0 || integer.Value.Int64() >= int64(len(elements)) {
 		return newError("array index out of bounds: %s", integer.Value.String())
 	}
-	elements[integer.Value.Int64()] = value
+	elements[integer.Value.Int64()] = copyValue(value)
 	return nil
 }
 
@@ -282,7 +282,7 @@ func (e *Evaluator) evalMapAssignment(
 		m.Keys = append(m.Keys, hk)
 		m.OriginalKeys[hk] = index
 	}
-	m.Pairs[hk] = value
+	m.Pairs[hk] = copyValue(value)
 
 	return m
 }
